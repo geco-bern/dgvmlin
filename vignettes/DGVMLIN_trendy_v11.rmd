@@ -2591,7 +2591,7 @@ supplementary$Veg_Demo<-c(NA,NA,NA,NA,NA,'No',
 'No',
 'No',
 'No',
-'Yes',
+'No',
 'Yes',
 'No',
 'No',
@@ -2641,7 +2641,7 @@ Quantile_result <- gdf_sampled%>%
       mutate(n = purrr::map_int(data, ~nrow(.))) %>%
       mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
       unnest(data) %>%
-      filter(modl %in% c('LPJ', "CABLE-POP", "ISBA-CTRIP", "LPJ-GUESS", "SDGVM"))%>%
+      filter(modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
       mutate(modl = "Veg Demo")
   ) %>%
   bind_rows(
@@ -2650,7 +2650,7 @@ Quantile_result <- gdf_sampled%>%
       mutate(n = purrr::map_int(data, ~nrow(.))) %>%
       mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
       unnest(data) %>%
-      filter(!modl %in% c('LPJ', "CABLE-POP", "ISBA-CTRIP", "LPJ-GUESS", "SDGVM"))%>%
+      filter(!modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
       mutate(modl = "not Veg Demo")
   ) 
 
