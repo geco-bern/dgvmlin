@@ -3,13 +3,18 @@ title: "Steady-state estimation"
 author: "Beni Stocker"
 date: "2026-04-09"
 output: html_document
+execute:
+  warning: false
+  message: false
 ---
 
 This is to assess the accuracy of the steady-state estimation from transient model outputs, in support of Zhang-Zheng et al. (*in rev.*).
 
-We consider two alternative models of the C cycle in a terrestrial ecosystem. The first represents all pool dynamics as a first-order decay process (constant turnover) and assumes constant parameters governing the downstream partition of C flows, determining the ratio of NPP/GPP and allocation fractions. Therefore, by design, it exhibits linear dynamics.
+We consider three alternative models of the C cycle in a terrestrial ecosystem. The first represents all pool dynamics as a first-order decay process (constant turnover) and assumes constant parameters governing the downstream partition of C flows, determining the ratio of NPP/GPP and allocation fractions. Therefore, by design, it exhibits linear dynamics.
 
-The second model, BiomeEP, is a vegetation demography model that explicity simulates forest dynamics. Previous research has demonstrated that upon a change in biomass production (or NPP), steady-state biomass pools change in parallel, but to a lesser degree (in relative terms) (Marqués et al., 2023). The model thus exhibits non-linear dynamics, arising from the relationship between NPP and steady-state vegetation C pools.
+The second model is a modified version of the first, where the turnover time of the wood C pool shortens as the size of that pool increases beyond a critical threshold. This introduces a non-linearity.
+
+The third model, BiomeEP, is a vegetation demography model that explicity simulates forest dynamics. Previous research has demonstrated that upon a change in biomass production (or NPP), steady-state biomass pools change in parallel, but to a lesser degree (in relative terms) (Marqués et al., 2023). The model thus exhibits non-linear dynamics, arising from the relationship between NPP and steady-state vegetation C pools.
 
 This vignette evaluates estimated versus actual steady-state vegetation C pools ($C(t)$) based on the two alternative models. Steady-state vegetation C pools are estimated using an approximative function.
 
@@ -382,7 +387,256 @@ df_lin |>
 )
 ```
 
-### Non-linear model: BiomeEP
+### Non-linear model
+
+This is a modified version of the `ccascade` model where the woody C pool turnover rate increases with the size of the woody C pool.
+
+#### Define model
+
+Define the model as before, but with a modification
+
+```{r}
+#| code-fold: true
+ccascade <- function( 
+  gpp, 
+  state = initpools(),
+  par = getpar(),
+  fluxes = initfluxes(),
+  nonlinear = FALSE
+  ){
+
+  # determine integration length (number of time steps) from length of 'c_influx'
+  len <- length(gpp)
+
+  # output the state and fluxes in one data frame
+  df <- dplyr::tibble()
+
+  # integrate over each time step (this is an implementation of the differential equation)
+  for (yr in seq(len)){
+
+    # update states and fluxes
+    if (nonlinear){
+      out <- ccascade_onestep_nonlinear(gpp[yr], state, par, fluxes)
+    } else {
+      out <- ccascade_onestep(gpp[yr], state, par, fluxes)
+    }
+    state <- out$state
+    fluxes <- out$fluxes
+
+    # record for output
+    df <- dplyr::bind_rows(
+      df,
+      dplyr::bind_cols( 
+        dplyr::tibble(year = yr),
+        dplyr::as_tibble(state), 
+        dplyr::as_tibble(fluxes))
+      )
+  }
+  return(df)
+}
+
+ccascade_onestep_nonlinear <- function(gpp, state, par, fluxes){
+
+  # total biomass production
+  bp <- gpp * par$bpe
+  fluxes$ra <- gpp * (1 - par$bpe)
+
+  kwood_eff <- par$kwood * 
+    ifelse(
+    state$cwood < 800, 
+    par$kwood, 
+    par$kwood * (state$cwood/800) ^ 1.0
+    )
+
+  # biomass turnover by pool, use exponential here to avoid numerical instability with k -> 1
+  dleaf <- (1 - exp(-par$kleaf)) * state$cleaf
+  dwood <- (1 - exp(-kwood_eff)) * state$cwood
+  droot <- (1 - exp(-par$kroot)) * state$croot
+
+  # update biomass pools
+  state$cleaf <- state$cleaf + bp * par$fleaf - dleaf
+  state$cwood <- state$cwood + bp * par$fwood - dwood
+  state$croot <- state$croot + bp * par$froot - droot
+
+  # litter turnover
+  dflitt <- (1 - exp(-par$kflitt)) * state$flitt
+  dslitt <- (1 - exp(-par$kslitt)) * state$slitt
+
+  # update litter: add biomass turnover and update litter pools
+  state$flitt <- state$flitt + dleaf + droot - dflitt
+  state$slitt <- state$slitt + dwood         - dslitt
+
+  # heterotrophic respiration during litter decomposition
+  rh_litt <- (1 - par$eff) * (dflitt + dslitt)
+
+  # soil turnover
+  dfsoil <- (1 - exp(-par$kfsoil)) * state$fsoil
+  dssoil <- (1 - exp(-par$kssoil)) * state$ssoil
+
+  # update soil: remainder of litter turnover goes to soil, subtract decomposing portion
+  state$fsoil <- state$fsoil + par$eff * par$ffast       * (dflitt + dslitt) - dfsoil
+  state$ssoil <- state$ssoil + par$eff * (1 - par$ffast) * (dflitt + dslitt) - dssoil
+
+  # heterotrophic respiration from soil decomposition
+  rh_soil <- dfsoil + dssoil
+  fluxes$rh <- rh_litt + rh_soil
+
+  return(list(state = state, fluxes = fluxes))
+}
+```
+
+#### Run model
+
+```{r}
+#| code-fold: true
+# run the model, it returns a data frame
+df_ccascade_nonlin <- df_full |> 
+  mutate(out = ccascade(gpp, nonlinear = TRUE)) |> 
+  rename(realyear = year) |> 
+  unnest(out) |> 
+  mutate(cveg = cleaf + cwood + croot)
+```
+
+#### Estimate steady state 
+
+... from transient outputs.
+
+```{r}
+#| code-fold: true
+k <- 10
+
+df_ccascade_nonlin <- df_ccascade_nonlin |> 
+  mutate(
+    dc = (cveg - lag(cveg, k)) / k,
+    bp = gpp - ra
+    ) |> 
+  mutate(c_star = estimate_steady_state(c_pool = cveg, c_in = bp, dc = dc))
+```
+
+The estimated steady-state approaches the true steady-state level much faster than transiently changing pools and therefore provides a reliable (albeit imperfect) estimate of the latter before the latter is known.
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade_nonlin-simulations
+#| fig-cap: "Simulated vegetation C pool size (orange line) in response to transiently changing CO2 after 1700 up to 2018 and the estimated steady state pool size, derived from transiently changing simulation outputs (black line). CO2 is held constant for 1000 years after 2018."
+#| out-width: 80%
+
+c_star_act <- df_ccascade_nonlin |> 
+  tail(n = 1) |> 
+  pull(cveg) |> 
+  mean(na.rm = TRUE)
+
+df_ccascade_nonlin |> 
+  ggplot() +
+  geom_line(aes(realyear, cveg, color = "Vegetation C pool")) +
+  geom_line(aes(realyear, c_star, color = "Steady-state estimate")) +
+  scale_color_okabeito(name = "") +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Pool size (PgC)") +
+  xlim(2018, 2500) + 
+  ylim(6000, 7000) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = c_star_act, linetype = "dotted")
+```
+
+The error of the steady state estimate is on the order of a 16-0 % percent of the absolute steady-state pool size and approaches zero towards the end of the transient simulation. The time scale to approach zero depends on the turnover rates of the respective pool(s) (not shown).
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade_nonlin-diff
+#| fig-cap: "Difference between the actual steady state vegetation C pool and the estimated value, derived from transient model outputs."
+#| out-width: 80%
+
+df_ccascade_nonlin <- df_ccascade_nonlin |> 
+  mutate(
+    diff_cveg = cveg - c_star_act,
+    diff_cstar = c_star - c_star_act
+    ) |> 
+  mutate(
+    reldiff_cveg = 100 * diff_cveg / c_star_act,
+    reldiff_cstar = 100 * diff_cstar / c_star_act
+    )
+
+df_ccascade_nonlin |> 
+  ggplot() +
+  geom_line(aes(realyear, diff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Error of estimate (PgC)") +
+  xlim(2018, 2500) + 
+  ylim (-100, 100) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+
+df_ccascade_nonlin |> 
+  ggplot() +
+  geom_line(aes(realyear, reldiff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Relative error of estimate (%)") +
+  xlim(2018, 2500) + 
+  ylim (-2, 1) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+```
+
+#### Assess *L*
+
+By design, the actual linearity term $L$ diagnosed from the actual steady-state yields a value of $L = 1$. In contrast, when diagnosing it from uncorrected transient outputs, the value is below 0.7. $L$ calculated from the estimated steady state yields a more accurate value--close to 1.0
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade_nonlin-linearityplot
+#| fig-cap: "Linearity term *L* derived for the linear model (ccascade) from (uncorrected) transient outputs (blue), from the estimated steady-state (orange), and from the actual steady state (black)."
+#| out-width: 60%
+
+df_lin <- df_ccascade_nonlin |> 
+  filter(realyear %in% 1765:1774) |> 
+  summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+  mutate(time = 0) |> 
+  bind_rows(
+    df_ccascade_nonlin |> 
+      filter(realyear %in% 2009:2018) |> 
+      summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+      mutate(time = 1)
+  ) |> 
+  bind_rows(
+    df_ccascade_nonlin |> 
+      tail(n = 10) |> 
+      summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+      mutate(time = 9)
+  ) %>%
+  pivot_wider(
+    names_from = time,
+    values_from = c(cveg, npp, c_star),
+    names_glue = "{.value}_{time}"
+  ) |> 
+  mutate(
+    lin_transient = ((cveg_1 - cveg_0)/cveg_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_est = ((c_star_1 - c_star_0)/c_star_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_act = ((c_star_9 - c_star_0)/c_star_0)/((npp_9 - npp_0)/npp_0),
+  )
+
+df_lin |> 
+  select(lin_transient, lin_ss_est, lin_ss_act) |> 
+  kable()
+
+df_lin |> 
+  select(starts_with("lin_")) |> 
+  pivot_longer(cols = everything(), names_to = "source", values_to = "lin") |> 
+  ggplot(aes(x = 1, y = lin, color = source)) +
+  geom_point(size = 3) +
+  scale_color_okabeito() +
+  theme_classic() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  labs(y = "L (unitless)")+ theme(
+  axis.title.x = element_blank(),
+  axis.text.x  = element_blank(),
+  axis.ticks.x = element_blank()
+)
+```
+
+### BiomeEP
+
+This performs the same analysis with a vegetation demography model, BiomeEP.
 
 #### Create forcing
 
@@ -600,18 +854,18 @@ By design, the actual linearity term $L$ diagnosed from the actual steady-state 
 #| out-width: 60%
 
 df_lin <- df_biomeep_smooth |> 
-  filter(realyear %in% 1765:1774) |> 
+  filter(realyear %in% 1765:(1765+ceiling(period))) |> 
   summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
   mutate(time = 0) |> 
   bind_rows(
     df_biomeep_smooth |> 
-      filter(realyear %in% 2009:2018) |> 
+      filter(realyear %in% (2018-ceiling(period)):2018) |> 
       summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
       mutate(time = 1)
   ) |> 
   bind_rows(
     df_biomeep_smooth |> 
-      tail(n = 10) |> 
+      tail(n = ceiling(period)) |> 
       summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
       mutate(time = 9)
   ) %>%
@@ -652,7 +906,7 @@ The result of the steady-state estimation, made for year 2018, is summarised bel
 ### Linear model
 
 - Vegetation C pool is 5.5% below its steady-state. 
-- The estimated steady-state vegetation C pool is 0.5% below its actual steady-state.
+- The estimated steady-state vegetation C pool is 0.53% below its actual steady-state.
 
 ```{r}
 #| code-fold: true
@@ -663,12 +917,27 @@ df_ccascade |>
   kable()
 ```
 
-### Non-linear model (BiomeEP)
+### Non-linear model
 
-- Vegetation C pool is 4.5% below its steady-state. 
-- The estimated steady-state vegetation C pool is 3.6% below its actual steady-state.
+- Vegetation C pool is 6.0% below its steady-state. 
+- The estimated steady-state vegetation C pool is 0.75% below its actual steady-state.
 
 ```{r}
+#| code-fold: true
+# non-linear model (ccascade)
+df_ccascade_nonlin |> 
+  filter(realyear == 2018) |> 
+  select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) |> 
+  kable()
+```
+
+### Non-linear model (BiomeEP)
+
+- Vegetation C pool is 3.9% below its steady-state. 
+- The estimated steady-state vegetation C pool is 2.9% below its actual steady-state.
+
+```{r}
+#| code-fold: true
 # non-linear model (BiomeEP)
 df_biomeep_smooth |> 
   filter(realyear == 2018) |> 
