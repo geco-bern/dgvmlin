@@ -13,12 +13,12 @@ output:
 library(tidyverse)
 library(here)
 # remotes::install_github("geco-bern/rgeco")
-library(rgeco)
+#library(rgeco)
 
 source(here("R/collect_gdf_bymodl_HZ_Trendyv11.R"))
 source(here("R/nc_to_df.R"))
 source(here("R/read_nc_onefile.R"))
-
+source(here("R/regrid_df.R"))
 # # create script from this vignette
 # knitr::purl(
 #   here("vignettes/DGVMLIN_trendy_v11.rmd"), 
@@ -440,7 +440,7 @@ summary_table <- tibble(
     NA,
     FALSE,
     FALSE,
-    TRUE,
+    FALSE,
     FALSE,
     FALSE,
     TRUE,
@@ -799,12 +799,9 @@ ggsave(filename = here("fig/combined_npp_gpp.pdf"), height = 5, width = 6)
 set.seed(1982)
 
 gdf_sampled <- gdf %>%
-  mutate(data = purrr::map(data, ~slice_sample(., n = nsample))) %>%
+  mutate(data = purrr::map(data, ~slice_sample(., n = nsample, replace = TRUE))) %>%
   unnest(data) %>%
-  dplyr::filter(
-    !is.nan(dnpp), !is.nan(dcveg_star), 
-    !is.infinite(dnpp), !is.infinite(dcveg_star)
-  )
+  dplyr::filter(!is.nan(dnpp), !is.nan(dcveg_star), !is.infinite(dnpp), !is.infinite(dcveg_star),l_cveg_star_npp>-1000000,l_cveg_star_npp<1000000) # the infinite filter does not work, no idea why
 
 # density scatter-plot for pooled data, balanced samples, original grid
 gg_densityscatter <- gdf_sampled %>%
@@ -1390,12 +1387,12 @@ Taking the ratio of Cwood vs. Cveg here, both for their non-steady conditions (w
 set.seed(1982)
 
 gdf_sampled <- gdf %>%
-  mutate(data = purrr::map(data, ~slice_sample(., n = nsample))) %>%
+  mutate(data = purrr::map(data, ~slice_sample(., n = nsample, replace = TRUE))) %>%
   unnest(data) %>%
   dplyr::filter(
    !is.nan(dcwood), !is.nan(dcveg), 
     !is.infinite(dcwood), !is.infinite(dcveg),
-    !is.nan(l_cwood_cveg), !is.infinite(l_cwood_cveg))
+    !is.nan(l_cwood_cveg), !is.infinite(l_cwood_cveg),l_cwood_cveg>-1000000,l_cwood_cveg<1000000)
 
 # density scatter-plot for pooled data, balanced samples, original grid
 gg_densityscatter <- gdf_sampled %>%
@@ -1473,7 +1470,8 @@ gdf_sampled <- gdf %>%
       mutate(n = purrr::map_int(data, ~nrow(.))) %>%
       mutate(data = purrr::map(data, ~slice_sample(., n = nsample))) %>% # smallest set here
       unnest(data) %>%
-      mutate(modl = "ALL")
+      mutate(modl = "ALL")%>%
+      dplyr::filter(l_cwood_cveg>-1000000,l_cwood_cveg<1000000)
   ) %>%
   dplyr::filter(
     !is.nan(dcwood), !is.nan(dcveg), 
@@ -2237,7 +2235,7 @@ gg_map_agg <- ggplot() +
 
 ###  cRoot ratio
 
-#### Publication Fig. SXXX
+#### Publication Fig. supplementary
 
 ```{r}
 havealook <- gdf %>% #Prepare the dataset, this is similar to the histogram above
@@ -2548,21 +2546,111 @@ heatmaps <- cowplot::plot_grid(
 
 heatmaps
 
-ggsave(here("fig/summary_table.pdf"), width = 7, height = 9)
+ggsave(here("fig/summary_tablev20250825.pdf"), width = 7, height = 9)
 ```
 
 ## SI data table
 
 ```{r}
-gdf_sampled <- gdf %>%
+supplementary <- as.data.frame(c('ALL',"C only models" ,"CN coupled models","Veg Demo","not Veg Demo",'CLASSIC',
+'IBIS',
+'LPJ',
+'ORCHIDEE',
+'VISIT',
+'ISBA-CTRIP',
+'CABLE-POP',
+'CLM5.0',
+'DLEM',
+'ISAM',
+'JSBACH',
+'JULES',
+'LPJ-GUESS',
+'LPX-Bern',
+'VISIT-NIES',
+'SDGVM'
+))
+colnames(supplementary) <- c('modl')
+supplementary$CN_coupled<-c(NA,NA,NA,NA,NA,'No',
+'No',
+'No',
+'Yes',
+'No',
+'No',
+'Yes',
+'Yes',
+'Yes',
+'Yes',
+'Yes',
+'Yes',
+'Yes',
+'Yes',
+'No',
+'Yes')
+supplementary$Veg_Demo<-c(NA,NA,NA,NA,NA,'No',
+'No',
+'No',
+'No',
+'No',
+'No',
+'Yes',
+'No',
+'No',
+'No',
+'No',
+'No',
+'Yes',
+'No',
+'No',
+'Yes')
+
+gdf2<-gdf 
+
+gdf_sampled <- gdf2%>%
   unnest(data) %>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% 
+      unnest(data) %>%
+      mutate(modl = "ALL")
+  ) 
+
+Quantile_result <- gdf_sampled%>%
   bind_rows(
     .,
     gdf %>%
       mutate(n = purrr::map_int(data, ~nrow(.))) %>%
       mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
       unnest(data) %>%
-      filter(!modl %in% c('LPJ', "CABLE-POP", "ISBA-CTRIP", "LPJ-GUESS", "SDGVM"))%>%
+      filter(modl %in% c('CLASSIC','IBIS','LPJ', "VISIT" ,  "VISIT-NIES", "ISBA-CTRIP"))%>%
+      mutate(modl = "C only models")
+  ) %>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(!modl %in% c('CLASSIC','IBIS','LPJ', "VISIT" ,  "VISIT-NIES", "ISBA-CTRIP"))%>%
+      mutate(modl = "CN coupled models")
+  ) %>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
+      mutate(modl = "Veg Demo")
+  ) %>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(!modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
       mutate(modl = "not Veg Demo")
   ) 
 
