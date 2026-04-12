@@ -151,7 +151,7 @@ getpar <- function(){
   list(
     bpe = 0.4,
     fleaf = 0.3,
-    froot = 3,
+    froot = 0.3,
     fwood = 0.4,
     kleaf = 0.5,
     kwood = 0.02,
@@ -289,7 +289,7 @@ df_ccascade |>
   scale_color_okabeito(name = "") +
   theme_classic() +
   labs(x = "Simulation year", y = "Pool size (PgC)") +
-  xlim(2018, 2500) + ylim(1250, 1400) +
+  xlim(2018, 2500) + ylim(900, 1100) +
   geom_vline(xintercept = 2018, linetype = "dotted") +
   geom_hline(yintercept = c_star_act, linetype = "dotted")
 ```
@@ -317,7 +317,7 @@ df_ccascade |>
   geom_line(aes(realyear, diff_cstar)) +
   theme_classic() +
   labs(x = "Simulation year", y = "Error of estimate (PgC)") +
-  xlim(2018, 2500) + ylim (-20, 2) +
+  xlim(2018, 2500) + ylim (-50, 2) +
   geom_vline(xintercept = 2018, linetype = "dotted") +
   geom_hline(yintercept = 0, linetype = "dotted")
 
@@ -326,7 +326,7 @@ df_ccascade |>
   geom_line(aes(realyear, reldiff_cstar)) +
   theme_classic() +
   labs(x = "Simulation year", y = "Relative error of estimate (%)") +
-  xlim(2018, 2500) + ylim (-2, 0.5) +
+  xlim(2018, 2500) + ylim (-5, 0.5) +
   geom_vline(xintercept = 2018, linetype = "dotted") +
   geom_hline(yintercept = 0, linetype = "dotted")
 ```
@@ -534,7 +534,7 @@ df_ccascade_nonlin |>
   theme_classic() +
   labs(x = "Simulation year", y = "Pool size (PgC)") +
   xlim(2018, 2500) + 
-  ylim(6000, 7000) +
+  ylim(5500, 6500) +
   geom_vline(xintercept = 2018, linetype = "dotted") +
   geom_hline(yintercept = c_star_act, linetype = "dotted")
 ```
@@ -905,8 +905,8 @@ The result of the steady-state estimation, made for year 2018, is summarised bel
 
 ### Linear model
 
-- Vegetation C pool is 5.5% below its steady-state. 
-- The estimated steady-state vegetation C pool is 0.53% below its actual steady-state.
+- Vegetation C pool is 7.0% below its steady-state. 
+- The estimated steady-state vegetation C pool is 4.0% below its actual steady-state.
 
 ```{r}
 #| code-fold: true
@@ -919,8 +919,8 @@ df_ccascade |>
 
 ### Non-linear model
 
-- Vegetation C pool is 6.0% below its steady-state. 
-- The estimated steady-state vegetation C pool is 0.75% below its actual steady-state.
+- Vegetation C pool is 6.3% below its steady-state. 
+- The estimated steady-state vegetation C pool is 1.4% below its actual steady-state.
 
 ```{r}
 #| code-fold: true
