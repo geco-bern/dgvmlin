@@ -2307,7 +2307,7 @@ bymodel_map <- ggplot() +
 ggsave(bymodel_map,filename = here("fig/rootshootration_trendyv11_bymodelv2.png"),height=10, width = 10)
 ```
 
-## Summary table
+## Summary table (heatmap)
 
 ```{r summary_table, fig.height=9, out.width="80%"}
 df <- summary_table |> 

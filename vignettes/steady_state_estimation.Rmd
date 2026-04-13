@@ -1,0 +1,961 @@
+---
+title: "Steady-state estimation"
+author: "Beni Stocker"
+date: "2026-04-09"
+output: html_document
+execute:
+  warning: false
+  message: false
+---
+
+This is to assess the accuracy of the steady-state estimation from transient model outputs, in support of Zhang-Zheng et al. (*in rev.*).
+
+We consider three alternative models of the C cycle in a terrestrial ecosystem. The first represents all pool dynamics as a first-order decay process (constant turnover) and assumes constant parameters governing the downstream partition of C flows, determining the ratio of NPP/GPP and allocation fractions. Therefore, by design, it exhibits linear dynamics.
+
+The second model is a modified version of the first, where the turnover time of the wood C pool shortens as the size of that pool increases beyond a critical threshold. This introduces a non-linearity.
+
+The third model, BiomeEP, is a vegetation demography model that explicity simulates forest dynamics. Previous research has demonstrated that upon a change in biomass production (or NPP), steady-state biomass pools change in parallel, but to a lesser degree (in relative terms) (Marqués et al., 2023). The model thus exhibits non-linear dynamics, arising from the relationship between NPP and steady-state vegetation C pools.
+
+This vignette evaluates estimated versus actual steady-state vegetation C pools ($C(t)$) based on the three alternative models. Steady-state vegetation C pools are estimated using an approximative function.
+
+## Analytic approach
+
+The steady-state vegetation C pool ($C^\ast$) can be estimated, assuming first-order decay (constant turnover $\tau$), as:
+$$
+C^\ast = \text{NPP}(t) / \tau
+$$
+Also following the first-order decay model, the temporal change in $C(t)$ is given by:
+$$
+dC/dt = \text{NPP}(t) - C(t)/\tau
+$$
+Combining these two equations, the turnover rate ($\tau$) can be estimated from NPP, the current (transiently changing) size ($C(t)$) and the temporal change of the vegetationa C pool ($dC/dt$):
+$$
+\tau = \frac{C(t)}{\text{NPP}(t) – dC/dt}
+$$
+This, in turn can be plugged into the first equation here. Thus, we get an expression for estimating of the steady-state vegetation C pool size from the transient dynamics as:
+$$
+C^\ast = \frac{C(t) \times \text{NPP}(t)}{\text{NPP}(t) – dC/dt}
+$$
+Eq. 12 is applied in the following for estimating the steady-state vegetation C pool size $C^\ast$ from the transient simulation outputs.
+
+The estimated steady state ($C^\ast$) serves to yield a more reliable quantification of the linearity than when relying on transient values $C(t)$. 
+
+The linearity term $L$ is defined as
+$$
+L_{y:x} = R_y / R_x = \frac{\Delta y/y}{\Delta x/x} 
+$$
+Here, $y$ is the vegetation C pool ($C(t)$) and $x$ is NPP. The $\Delta$ shall be derived from outputs of transient model simulations, comparing the initial state from the start of the transient simulation to the final state, either at the end of the transient simulation (for fluxes, e.g., NPP), or as an estimate of the steady-state for pools.
+
+## Simulations
+
+Load R libraries.
+```{r}
+#| code-fold: true
+library(tidyverse)
+library(rsofun)  # contains BiomeEP model
+library(slider)
+library(knitr)
+library(khroma)
+```
+
+Implement steady state estimation function (in R).
+```{r}
+estimate_steady_state <- function(c_pool, c_in, dc){
+  (c_pool * c_in)/(c_in - dc)
+}
+```
+
+### Linear model
+
+#### Define model
+
+The model is implemented in R and described in more detail [here](https://geco-bern.github.io/les/ecosystemcarbon.html#sec-ccascade).
+```{r}
+#| code-fold: true
+ccascade <- function( 
+  gpp, 
+  state = initpools(),
+  par = getpar(),
+  fluxes = initfluxes()
+  ){
+
+  # determine integration length (number of time steps) from length of 'c_influx'
+  len <- length(gpp)
+
+  # output the state and fluxes in one data frame
+  df <- dplyr::tibble()
+
+  # integrate over each time step (this is an implementation of the differential equation)
+  for (yr in seq(len)){
+
+    # update states and fluxes
+    out <- ccascade_onestep(gpp[yr], state, par, fluxes)
+    state <- out$state
+    fluxes <- out$fluxes
+
+    # record for output
+    df <- dplyr::bind_rows(
+      df,
+      dplyr::bind_cols( 
+        dplyr::tibble(year = yr),
+        dplyr::as_tibble(state), 
+        dplyr::as_tibble(fluxes))
+      )
+  }
+  return(df)
+}
+
+ccascade_onestep <- function(gpp, state, par, fluxes){
+
+  # total biomass production
+  bp <- gpp * par$bpe
+  fluxes$ra <- gpp * (1 - par$bpe)
+
+  # biomass turnover by pool, use exponential here to avoid numerical instability with k -> 1
+  dleaf <- (1 - exp(-par$kleaf)) * state$cleaf
+  dwood <- (1 - exp(-par$kwood)) * state$cwood
+  droot <- (1 - exp(-par$kroot)) * state$croot
+
+  # update biomass pools
+  state$cleaf <- state$cleaf + bp * par$fleaf - dleaf
+  state$cwood <- state$cwood + bp * par$fwood - dwood
+  state$croot <- state$croot + bp * par$froot - droot
+
+  # litter turnover
+  dflitt <- (1 - exp(-par$kflitt)) * state$flitt
+  dslitt <- (1 - exp(-par$kslitt)) * state$slitt
+
+  # update litter: add biomass turnover and update litter pools
+  state$flitt <- state$flitt + dleaf + droot - dflitt
+  state$slitt <- state$slitt + dwood         - dslitt
+
+  # heterotrophic respiration during litter decomposition
+  rh_litt <- (1 - par$eff) * (dflitt + dslitt)
+
+  # soil turnover
+  dfsoil <- (1 - exp(-par$kfsoil)) * state$fsoil
+  dssoil <- (1 - exp(-par$kssoil)) * state$ssoil
+
+  # update soil: remainder of litter turnover goes to soil, subtract decomposing portion
+  state$fsoil <- state$fsoil + par$eff * par$ffast       * (dflitt + dslitt) - dfsoil
+  state$ssoil <- state$ssoil + par$eff * (1 - par$ffast) * (dflitt + dslitt) - dssoil
+
+  # heterotrophic respiration from soil decomposition
+  rh_soil <- dfsoil + dssoil
+  fluxes$rh <- rh_litt + rh_soil
+
+  return(list(state = state, fluxes = fluxes))
+}
+
+getpar <- function(){
+  list(
+    bpe = 0.4,
+    fleaf = 0.3,
+    froot = 0.3,
+    fwood = 0.4,
+    kleaf = 0.5,
+    kwood = 0.02,
+    kroot = 0.5,
+    kflitt = 0.5,
+    kslitt = 0.1,
+    kfsoil = 0.1,
+    kssoil = 0.003,
+    eff = 0.6,
+    ffast = 0.95
+    )
+}
+
+initpools <- function(){
+  list(
+    cleaf = 0,
+    cwood = 0,
+    croot = 0,
+    flitt = 0,
+    slitt = 0,
+    fsoil = 0,
+    ssoil = 0
+    )
+}
+
+initfluxes <- function(){
+  list(
+    ra = 0,
+    rh = 0
+    )
+}
+```
+
+#### Create forcing
+
+Create model forcing: 1000 years spinup at CO2 levels corresponding to year 1700 (first year of transient simulation). Then transiently changing CO2 following observations (ISIMIP2a standard forcing file) up to year 2018. Then 1000 simulation years at constant year-2018 levels.
+```{r}
+#| code-fold: true
+# --- Load data ---
+# CMIP6 historical + SSP CO2 (annual, ppm)
+url <- "https://files.isimip.org/ISIMIP2a/InputData/climate_co2/co2/historical_CO2_annual_1765_2018.txt"
+
+df <- read_table(
+  url,
+  col_names = c("year", "co2")
+)
+
+# # Mauna Loa
+# url <- "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_annmean_mlo.txt"
+
+# df <- read_table(
+#   url,
+#   comment = "#",
+#   col_names = c("year", "mean", "uncertainty")
+# ) %>%
+#   rename(co2 = mean) %>%
+#   select(year, co2)
+
+# --- Parameters ---
+beta <- 0.46
+co2_init <- df$co2[1]
+gpp_init <- 100
+
+# --- Compute GPP ---
+df <- df %>%
+  mutate(gpp = gpp_init * (co2 / co2_init)^beta)
+
+# --- Create 1000-year spin-up (repeat first row) ---
+spinup <- df %>%
+  slice(1) %>%
+  slice(rep(1, 1000)) %>%
+  mutate(year = (-999:0) + 1764)   
+
+# stabilisation ---------
+co2_final <- df$co2[nrow(df)]
+gpp_final <- df$gpp[nrow(df)]
+year_final <- df$year[nrow(df)]
+
+stabilization <- tibble(
+  year = (year_final + 1):(year_final + 1000),
+  co2  = co2_final,
+  gpp  = gpp_final
+)
+
+# --- Combine spin-up + real data ---
+df_full <- bind_rows(spinup, df, stabilization) %>%
+  mutate(sim_year = row_number())  # simulation index
+```
+
+#### Run model
+
+```{r}
+#| code-fold: true
+# run the model, it returns a data frame
+df_ccascade <- df_full |> 
+  mutate(out = ccascade(gpp)) |> 
+  rename(realyear = year) |> 
+  unnest(out) |> 
+  mutate(cveg = cleaf + cwood + croot)
+```
+
+#### Estimate steady state 
+
+... from transient outputs.
+
+```{r}
+#| code-fold: true
+k <- 10
+
+df_ccascade <- df_ccascade |> 
+  mutate(
+    dc = (cveg - lag(cveg, k)) / k,
+    bp = gpp - ra
+    ) |> 
+  mutate(c_star = estimate_steady_state(c_pool = cveg, c_in = bp, dc = dc))
+```
+
+The estimated steady-state approaches the true steady-state level much faster than transiently changing pools and therefore provides a reliable (albeit imperfect) estimate of the latter before the latter is known.
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade-simulations
+#| fig-cap: "Simulated vegetation C pool size (orange line) in response to transiently changing CO2 after 1700 up to 2018 and the estimated steady state pool size, derived from transiently changing simulation outputs (black line). CO2 is held constant for 1000 years after 2018."
+#| out-width: 80%
+
+c_star_act <- df_ccascade |> 
+  tail(n = 1) |> 
+  pull(cveg) |> 
+  mean(na.rm = TRUE)
+
+df_ccascade |> 
+  ggplot() +
+  geom_line(aes(realyear, cveg, color = "Vegetation C pool")) +
+  geom_line(aes(realyear, c_star, color = "Steady-state estimate")) +
+  scale_color_okabeito(name = "") +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Pool size (PgC)") +
+  xlim(2018, 2500) + ylim(900, 1100) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = c_star_act, linetype = "dotted")
+```
+
+The error of the steady state estimate is on the order of a 16-0 % percent of the absolute steady-state pool size and approaches zero towards the end of the transient simulation. The time scale to approach zero depends on the turnover rates of the respective pool(s) (not shown).
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade-diff
+#| fig-cap: "Difference between the actual steady state vegetation C pool and the estimated value, derived from transient model outputs."
+#| out-width: 80%
+
+df_ccascade <- df_ccascade |> 
+  mutate(
+    diff_cveg = cveg - c_star_act,
+    diff_cstar = c_star - c_star_act
+    ) |> 
+  mutate(
+    reldiff_cveg = 100 * diff_cveg / c_star_act,
+    reldiff_cstar = 100 * diff_cstar / c_star_act
+    )
+
+df_ccascade |> 
+  ggplot() +
+  geom_line(aes(realyear, diff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Error of estimate (PgC)") +
+  xlim(2018, 2500) + ylim (-50, 2) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+
+df_ccascade |> 
+  ggplot() +
+  geom_line(aes(realyear, reldiff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Relative error of estimate (%)") +
+  xlim(2018, 2500) + ylim (-5, 0.5) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+```
+
+#### Assess *L*
+
+By design, the actual linearity term $L$ diagnosed from the actual steady-state yields a value of $L = 1$. In contrast, when diagnosing it from uncorrected transient outputs, the value is below 0.7. $L$ calculated from the estimated steady state yields a more accurate value--close to 1.0
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade-linearityplot
+#| fig-cap: "Linearity term *L* derived for the linear model (ccascade) from (uncorrected) transient outputs (blue), from the estimated steady-state (orange), and from the actual steady state (black)."
+#| out-width: 60%
+
+df_lin <- df_ccascade |> 
+  filter(realyear %in% 1765:1769) |> 
+  summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+  mutate(time = 0) |> 
+  bind_rows(
+    df_ccascade |> 
+      filter(realyear %in% 2014:2018) |> 
+      summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+      mutate(time = 1)
+  ) |> 
+  bind_rows(
+    df_ccascade |> 
+      tail(n = 5) |> 
+      summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+      mutate(time = 9)
+  ) %>%
+  pivot_wider(
+    names_from = time,
+    values_from = c(cveg, npp, c_star),
+    names_glue = "{.value}_{time}"
+  ) |> 
+  mutate(
+    lin_transient = ((cveg_1 - cveg_0)/cveg_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_est = ((c_star_1 - c_star_0)/c_star_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_act = ((c_star_9 - c_star_0)/c_star_0)/((npp_9 - npp_0)/npp_0),
+  )
+
+df_lin |> 
+  select(lin_transient, lin_ss_est, lin_ss_act) |> 
+  kable()
+
+df_lin |> 
+  select(starts_with("lin_")) |> 
+  pivot_longer(cols = everything(), names_to = "source", values_to = "lin") |> 
+  ggplot(aes(x = 1, y = lin, color = source)) +
+  geom_point(size = 3) +
+  scale_color_okabeito() +
+  theme_classic() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  labs(y = "L (unitless)")+ theme(
+  axis.title.x = element_blank(),
+  axis.text.x  = element_blank(),
+  axis.ticks.x = element_blank()
+)
+```
+
+### Non-linear model
+
+This is a modified version of the `ccascade` model where the woody C pool turnover rate increases with the size of the woody C pool.
+
+#### Define model
+
+Define the model as before, but with a modification
+
+```{r}
+#| code-fold: true
+ccascade <- function( 
+  gpp, 
+  state = initpools(),
+  par = getpar(),
+  fluxes = initfluxes(),
+  nonlinear = FALSE
+  ){
+
+  # determine integration length (number of time steps) from length of 'c_influx'
+  len <- length(gpp)
+
+  # output the state and fluxes in one data frame
+  df <- dplyr::tibble()
+
+  # integrate over each time step (this is an implementation of the differential equation)
+  for (yr in seq(len)){
+
+    # update states and fluxes
+    if (nonlinear){
+      out <- ccascade_onestep_nonlinear(gpp[yr], state, par, fluxes)
+    } else {
+      out <- ccascade_onestep(gpp[yr], state, par, fluxes)
+    }
+    state <- out$state
+    fluxes <- out$fluxes
+
+    # record for output
+    df <- dplyr::bind_rows(
+      df,
+      dplyr::bind_cols( 
+        dplyr::tibble(year = yr),
+        dplyr::as_tibble(state), 
+        dplyr::as_tibble(fluxes))
+      )
+  }
+  return(df)
+}
+
+ccascade_onestep_nonlinear <- function(gpp, state, par, fluxes){
+
+  # total biomass production
+  bp <- gpp * par$bpe
+  fluxes$ra <- gpp * (1 - par$bpe)
+
+  kwood_eff <- par$kwood * 
+    ifelse(
+    state$cwood < 800, 
+    par$kwood, 
+    par$kwood * (state$cwood/800) ^ 1.0
+    )
+
+  # biomass turnover by pool, use exponential here to avoid numerical instability with k -> 1
+  dleaf <- (1 - exp(-par$kleaf)) * state$cleaf
+  dwood <- (1 - exp(-kwood_eff)) * state$cwood
+  droot <- (1 - exp(-par$kroot)) * state$croot
+
+  # update biomass pools
+  state$cleaf <- state$cleaf + bp * par$fleaf - dleaf
+  state$cwood <- state$cwood + bp * par$fwood - dwood
+  state$croot <- state$croot + bp * par$froot - droot
+
+  # litter turnover
+  dflitt <- (1 - exp(-par$kflitt)) * state$flitt
+  dslitt <- (1 - exp(-par$kslitt)) * state$slitt
+
+  # update litter: add biomass turnover and update litter pools
+  state$flitt <- state$flitt + dleaf + droot - dflitt
+  state$slitt <- state$slitt + dwood         - dslitt
+
+  # heterotrophic respiration during litter decomposition
+  rh_litt <- (1 - par$eff) * (dflitt + dslitt)
+
+  # soil turnover
+  dfsoil <- (1 - exp(-par$kfsoil)) * state$fsoil
+  dssoil <- (1 - exp(-par$kssoil)) * state$ssoil
+
+  # update soil: remainder of litter turnover goes to soil, subtract decomposing portion
+  state$fsoil <- state$fsoil + par$eff * par$ffast       * (dflitt + dslitt) - dfsoil
+  state$ssoil <- state$ssoil + par$eff * (1 - par$ffast) * (dflitt + dslitt) - dssoil
+
+  # heterotrophic respiration from soil decomposition
+  rh_soil <- dfsoil + dssoil
+  fluxes$rh <- rh_litt + rh_soil
+
+  return(list(state = state, fluxes = fluxes))
+}
+```
+
+#### Run model
+
+```{r}
+#| code-fold: true
+# run the model, it returns a data frame
+df_ccascade_nonlin <- df_full |> 
+  mutate(out = ccascade(gpp, nonlinear = TRUE)) |> 
+  rename(realyear = year) |> 
+  unnest(out) |> 
+  mutate(cveg = cleaf + cwood + croot)
+```
+
+#### Estimate steady state 
+
+... from transient outputs.
+
+```{r}
+#| code-fold: true
+k <- 10
+
+df_ccascade_nonlin <- df_ccascade_nonlin |> 
+  mutate(
+    dc = (cveg - lag(cveg, k)) / k,
+    bp = gpp - ra
+    ) |> 
+  mutate(c_star = estimate_steady_state(c_pool = cveg, c_in = bp, dc = dc))
+```
+
+The estimated steady-state approaches the true steady-state level much faster than transiently changing pools and therefore provides a reliable (albeit imperfect) estimate of the latter before the latter is known.
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade_nonlin-simulations
+#| fig-cap: "Simulated vegetation C pool size (orange line) in response to transiently changing CO2 after 1700 up to 2018 and the estimated steady state pool size, derived from transiently changing simulation outputs (black line). CO2 is held constant for 1000 years after 2018."
+#| out-width: 80%
+
+c_star_act <- df_ccascade_nonlin |> 
+  tail(n = 1) |> 
+  pull(cveg) |> 
+  mean(na.rm = TRUE)
+
+df_ccascade_nonlin |> 
+  ggplot() +
+  geom_line(aes(realyear, cveg, color = "Vegetation C pool")) +
+  geom_line(aes(realyear, c_star, color = "Steady-state estimate")) +
+  scale_color_okabeito(name = "") +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Pool size (PgC)") +
+  xlim(2018, 2500) + 
+  ylim(5500, 6500) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = c_star_act, linetype = "dotted")
+```
+
+The error of the steady state estimate is on the order of a 16-0 % percent of the absolute steady-state pool size and approaches zero towards the end of the transient simulation. The time scale to approach zero depends on the turnover rates of the respective pool(s) (not shown).
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade_nonlin-diff
+#| fig-cap: "Difference between the actual steady state vegetation C pool and the estimated value, derived from transient model outputs."
+#| out-width: 80%
+
+df_ccascade_nonlin <- df_ccascade_nonlin |> 
+  mutate(
+    diff_cveg = cveg - c_star_act,
+    diff_cstar = c_star - c_star_act
+    ) |> 
+  mutate(
+    reldiff_cveg = 100 * diff_cveg / c_star_act,
+    reldiff_cstar = 100 * diff_cstar / c_star_act
+    )
+
+df_ccascade_nonlin |> 
+  ggplot() +
+  geom_line(aes(realyear, diff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Error of estimate (PgC)") +
+  xlim(2018, 2500) + 
+  ylim (-100, 100) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+
+df_ccascade_nonlin |> 
+  ggplot() +
+  geom_line(aes(realyear, reldiff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Relative error of estimate (%)") +
+  xlim(2018, 2500) + 
+  ylim (-2, 1) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+```
+
+#### Assess *L*
+
+By design, the actual linearity term $L$ diagnosed from the actual steady-state yields a value of $L = 1$. In contrast, when diagnosing it from uncorrected transient outputs, the value is below 0.7. $L$ calculated from the estimated steady state yields a more accurate value--close to 1.0
+
+```{r}
+#| code-fold: true
+#| label: fig-ccascade_nonlin-linearityplot
+#| fig-cap: "Linearity term *L* derived for the linear model (ccascade) from (uncorrected) transient outputs (blue), from the estimated steady-state (orange), and from the actual steady state (black)."
+#| out-width: 60%
+
+df_lin <- df_ccascade_nonlin |> 
+  filter(realyear %in% 1765:1769) |> 
+  summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+  mutate(time = 0) |> 
+  bind_rows(
+    df_ccascade_nonlin |> 
+      filter(realyear %in% 2014:2018) |> 
+      summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+      mutate(time = 1)
+  ) |> 
+  bind_rows(
+    df_ccascade_nonlin |> 
+      tail(n = 5) |> 
+      summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
+      mutate(time = 9)
+  ) %>%
+  pivot_wider(
+    names_from = time,
+    values_from = c(cveg, npp, c_star),
+    names_glue = "{.value}_{time}"
+  ) |> 
+  mutate(
+    lin_transient = ((cveg_1 - cveg_0)/cveg_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_est = ((c_star_1 - c_star_0)/c_star_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_act = ((c_star_9 - c_star_0)/c_star_0)/((npp_9 - npp_0)/npp_0),
+  )
+
+df_lin |> 
+  select(lin_transient, lin_ss_est, lin_ss_act) |> 
+  kable()
+
+df_lin |> 
+  select(starts_with("lin_")) |> 
+  pivot_longer(cols = everything(), names_to = "source", values_to = "lin") |> 
+  ggplot(aes(x = 1, y = lin, color = source)) +
+  geom_point(size = 3) +
+  scale_color_okabeito() +
+  theme_classic() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  labs(y = "L (unitless)")+ theme(
+  axis.title.x = element_blank(),
+  axis.text.x  = element_blank(),
+  axis.ticks.x = element_blank()
+)
+```
+
+### BiomeEP
+
+This performs the same analysis with a vegetation demography model, BiomeEP.
+
+#### Create forcing
+
+```{r}
+#| code-fold: true
+
+# expand to daily 
+co2_daily <- df %>%
+  mutate(date = map(year, ~ seq.Date(
+    from = as.Date(paste0(.x, "-01-01")),
+    to   = as.Date(paste0(.x, "-12-31")),
+    by   = "day"
+  ))) %>%
+  unnest(date) %>%
+  select(date, co2)
+
+# extract BiomeEP forcing
+forcing <- biomee_p_model_drivers$forcing[[1]]
+
+# align years
+forcing_full <- forcing %>%
+  mutate(doy = yday(date)) %>%
+  select(-date)
+
+years <- df$year
+
+forcing_expanded <- map_dfr(years, function(y) {
+  forcing_full %>%
+    mutate(
+      year = y,
+      date = as.Date(doy - 1, origin = paste0(y, "-01-01"))
+    )
+})
+
+# merge CO2 forcing
+forcing_final <- forcing_expanded %>%
+  select(-co2) |> 
+  left_join(co2_daily, by = "date")
+```
+
+Add 1000 year stabilisation phase in forcing.
+
+```{r}
+#| code-fold: true
+
+last_year <- max(lubridate::year(forcing_final$date))
+
+forcing_last <- forcing_final %>%
+  filter(lubridate::year(date) == last_year) %>%
+  mutate(doy = lubridate::yday(date)) %>%
+  select(-date)
+
+co2_final <- forcing_final %>%
+  filter(lubridate::year(date) == last_year) %>%
+  summarise(co2 = mean(co2, na.rm = TRUE)) %>%
+  pull(co2)
+
+years_ext <- (last_year + 1):(last_year + 1000)
+
+forcing_stabilization <- purrr::map_dfr(years_ext, function(y) {
+  forcing_last %>%
+    mutate(
+      year = y,
+      date = as.Date(doy - 1, origin = paste0(y, "-01-01")),
+      co2 = co2_final
+    )
+})
+
+forcing_full <- bind_rows(
+  forcing_final,
+  forcing_stabilization
+)
+
+biomee_p_model_drivers$forcing[[1]] <- forcing_full
+```
+
+#### Run model
+
+Some simulation parameters: 1000 years spinup (repeating first year)
+```{r}
+#| code-fold: true
+
+biomee_p_model_drivers$params_siml[[1]]$spinupyears <- 1000
+biomee_p_model_drivers$params_siml[[1]]$recycle <- 1
+biomee_p_model_drivers$params_siml[[1]]$nyeartrend <- 2018 - 1765 + 1000
+```
+
+```{r}
+#| code-fold: true
+
+out <- runread_biomee_f(
+  biomee_p_model_drivers,
+  makecheck = TRUE,
+  parallel = FALSE
+  )
+
+df_biomeep <- out$data[[1]]$output_annual_tile |> 
+  as_tibble() |> 
+  select(year, npp = NPP, cveg = plantC) |> 
+  mutate(realyear = year + 764)
+```
+
+Smooth to avoid oscillations
+```{r}
+#| code-fold: true
+
+# determine frequency
+spec <- spectrum(
+  df_biomeep |> 
+    filter(realyear %in% 2018:3000) |> 
+    pull(cveg), 
+  plot = FALSE
+  )
+
+freq <- spec$freq[which.max(spec$spec)]
+period <- 1 / freq
+
+vars <- c("npp", "cveg")
+
+win <- ceiling(period)
+
+df_biomeep_smooth <- df_biomeep %>%
+  mutate(
+    across(
+      all_of(vars),
+      ~ slide_dbl(.x, mean, .after = win - 1, .complete = TRUE),
+      .names = "{.col}"
+    )
+  ) %>%
+  slice(1:(n() - win + 1))
+
+```
+
+Estimate steady state.
+
+```{r}
+#| code-fold: true
+k <- 10
+df_biomeep_smooth <- df_biomeep_smooth |> 
+  mutate(
+    dc = (cveg - lag(cveg, k)) / k
+    ) |> 
+  mutate(c_star = estimate_steady_state(c_pool = cveg, c_in = npp, dc = dc))
+```
+
+#### Evaluate
+
+```{r}
+#| code-fold: true
+#| label: fig-biomeep-simulations
+#| fig-cap: "Simulated vegetation C pool size (orange line) in response to transiently changing CO2 after 1700 up to 2018 and the estimated steady state pool size, derived from transiently changing simulation outputs (black line). CO2 is held constant for 1000 years after 2018."
+#| out-width: 80%
+
+c_star_act <- df_biomeep_smooth |> 
+  tail(n = 5) |> 
+  pull(cveg) |> 
+  mean(na.rm = TRUE)
+
+df_biomeep_smooth |> 
+  ggplot() +
+  geom_line(aes(realyear, cveg, color = "Vegetation C pool")) +
+  geom_line(aes(realyear, c_star, color = "Steady-state estimate")) +
+  khroma::scale_color_okabeito(name = "") +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Pool size (kg C)") +
+  xlim(1980, 2500) + 
+  ylim(11, 14) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = c_star_act, linetype = "dotted")
+```
+
+The error of the steady state estimate is on the order of a 16-0 % percent of the absolute steady-state pool size and approaches zero towards the end of the transient simulation. The time scale to approach zero depends on the turnover rates of the respective pool(s) (not shown).
+
+```{r}
+#| code-fold: true
+#| label: fig-biomeep-diff
+#| fig-cap: "Difference between the actual steady state vegetation C pool and the estimated value, derived from transient model outputs."
+#| out-width: 80%
+
+df_biomeep_smooth <- df_biomeep_smooth |> 
+  mutate(
+    diff_cveg = cveg - c_star_act,
+    diff_cstar = c_star - c_star_act
+    ) |> 
+  mutate(
+    reldiff_cveg = 100 * diff_cveg / c_star_act,
+    reldiff_cstar = 100 * diff_cstar / c_star_act
+    )
+
+df_biomeep_smooth  |> 
+  ggplot() +
+  geom_line(aes(realyear, diff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Error of estimate (kg C)") +
+  xlim(2018, 2500) + 
+  ylim (-1, 0.5) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+
+df_biomeep_smooth |> 
+  ggplot() +
+  geom_line(aes(realyear, reldiff_cstar)) +
+  theme_classic() +
+  labs(x = "Simulation year", y = "Relative error of estimate (%)") +
+  xlim(2018, 2500) + 
+  ylim (-5, 2) +
+  geom_vline(xintercept = 2018, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted")
+```
+
+#### Assess *L*
+
+By design, the actual linearity term $L$ diagnosed from the actual steady-state yields a value of $L = 1$. In contrast, when diagnosing it from uncorrected transient outputs, the value is below 0.7. $L$ calculated from the estimated steady state yields a more accurate value--close to 1.0
+
+```{r}
+#| code-fold: true
+#| label: fig-biomeep-linearityplot
+#| fig-cap: "Linearity term *L* derived for the non-linear model (BiomeEP) from (uncorrected) transient outputs (blue), from the estimated steady-state (orange), and from the actual steady state (black)."
+#| out-width: 60%
+
+df_lin <- df_biomeep_smooth |> 
+  # filter(realyear %in% 1765:(1765+ceiling(period))) |> 
+  filter(realyear %in% 1765:1769) |> 
+  summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
+  mutate(time = 0) |> 
+  bind_rows(
+    df_biomeep_smooth |> 
+      # filter(realyear %in% (2018-ceiling(period)):2018) |> 
+      filter(realyear %in% 2014:2018) |> 
+      summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
+      mutate(time = 1)
+  ) |> 
+  bind_rows(
+    df_biomeep_smooth |> 
+      # tail(n = ceiling(period)) |> 
+      tail(n = 5) |> 
+      summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
+      mutate(time = 9)
+  ) %>%
+  pivot_wider(
+    names_from = time,
+    values_from = c(cveg, npp, c_star),
+    names_glue = "{.value}_{time}"
+  ) |> 
+  mutate(
+    lin_transient = ((cveg_1 - cveg_0)/cveg_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_est = ((c_star_1 - c_star_0)/c_star_0)/((npp_1 - npp_0)/npp_0),
+    lin_ss_act = ((c_star_9 - c_star_0)/c_star_0)/((npp_9 - npp_0)/npp_0),
+  )
+
+df_lin |> 
+  select(lin_transient, lin_ss_est, lin_ss_act) |> 
+  kable()
+
+df_lin |> 
+  select(starts_with("lin_")) |> 
+  pivot_longer(cols = everything(), names_to = "source", values_to = "lin") |> 
+  ggplot(aes(x = 1, y = lin, color = source)) +
+  geom_point(size = 3) +
+  scale_color_okabeito() +
+  theme_classic() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  labs(y = "L (unitless)")+ theme(
+  axis.title.x = element_blank(),
+  axis.text.x  = element_blank(),
+  axis.ticks.x = element_blank()
+)
+```
+
+## Summary
+
+The result of the steady-state estimation, made for year 2018, is summarised below. 
+
+### Linear model
+
+```{r}
+#| code-fold: true
+# linear model (ccascade)
+summ_ccascade <- df_ccascade |> 
+  filter(realyear == 2018) |> 
+  dplyr::select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) 
+  
+summ_ccascade |> 
+  kable()
+```
+
+- Vegetation C pool is `{r} format(abs(summ_ccascade$reldiff_cveg[1]), digits = 2)` below its steady-state. 
+- The estimated steady-state vegetation C pool is `{r} format(abs(summ_ccascade$reldiff_cstar[1]), digits = 2)`% below its actual steady-state.
+
+
+### Non-linear model
+
+```{r}
+#| code-fold: true
+# non-linear model (ccascade)
+summ_ccascade_nonlin <- df_ccascade_nonlin |> 
+  filter(realyear == 2018) |> 
+  dplyr::select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) 
+  
+summ_ccascade_nonlin |> 
+  kable()
+```
+
+- Vegetation C pool is `{r} format(abs(summ_ccascade_nonlin$reldiff_cveg[1]), digits = 2)`% below its steady-state. 
+- The estimated steady-state vegetation C pool is `{r} format(abs(summ_ccascade_nonlin$reldiff_cstar[1]), digits = 2)`% below its actual steady-state.
+
+
+### Non-linear model (BiomeEP)
+
+```{r}
+#| code-fold: true
+# non-linear model (BiomeEP)
+summm_biomeep <- df_biomeep_smooth |> 
+  filter(realyear == 2018) |> 
+  dplyr::select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) 
+  
+summm_biomeep |> 
+  kable()
+```
+
+- Vegetation C pool is `{r} format(abs(summm_biomeep$reldiff_cveg[1]), digits = 2)`% below its steady-state. 
+- The estimated steady-state vegetation C pool is `{r} format(abs(summm_biomeep$reldiff_cstar[1]), digits = 2)`% below its actual steady-state.
