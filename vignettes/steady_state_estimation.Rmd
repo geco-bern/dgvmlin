@@ -16,7 +16,7 @@ The second model is a modified version of the first, where the turnover time of 
 
 The third model, BiomeEP, is a vegetation demography model that explicity simulates forest dynamics. Previous research has demonstrated that upon a change in biomass production (or NPP), steady-state biomass pools change in parallel, but to a lesser degree (in relative terms) (Marqués et al., 2023). The model thus exhibits non-linear dynamics, arising from the relationship between NPP and steady-state vegetation C pools.
 
-This vignette evaluates estimated versus actual steady-state vegetation C pools ($C(t)$) based on the two alternative models. Steady-state vegetation C pools are estimated using an approximative function.
+This vignette evaluates estimated versus actual steady-state vegetation C pools ($C(t)$) based on the three alternative models. Steady-state vegetation C pools are estimated using an approximative function.
 
 ## Analytic approach
 
@@ -42,9 +42,9 @@ The estimated steady state ($C^\ast$) serves to yield a more reliable quantifica
 
 The linearity term $L$ is defined as
 $$
-L_{y:x} = R_y / R_y = \frac{\Delta y/y}{\Delta x/x} 
+L_{y:x} = R_y / R_x = \frac{\Delta y/y}{\Delta x/x} 
 $$
-Here, $y$ is the vegetation C pool ($C(t)$) and $x$ is NPP. The $\Delta$ shall be derived from outputs of transient model simulation, comparing the initial state from the start of the transient simulation to the final state, either at the end of the transient simulation (for fluxes, e.g., NPP), or as an estimate of the steady-state for pools.
+Here, $y$ is the vegetation C pool ($C(t)$) and $x$ is NPP. The $\Delta$ shall be derived from outputs of transient model simulations, comparing the initial state from the start of the transient simulation to the final state, either at the end of the transient simulation (for fluxes, e.g., NPP), or as an estimate of the steady-state for pools.
 
 ## Simulations
 
@@ -342,18 +342,18 @@ By design, the actual linearity term $L$ diagnosed from the actual steady-state 
 #| out-width: 60%
 
 df_lin <- df_ccascade |> 
-  filter(realyear %in% 1765:1774) |> 
+  filter(realyear %in% 1765:1769) |> 
   summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
   mutate(time = 0) |> 
   bind_rows(
     df_ccascade |> 
-      filter(realyear %in% 2009:2018) |> 
+      filter(realyear %in% 2014:2018) |> 
       summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
       mutate(time = 1)
   ) |> 
   bind_rows(
     df_ccascade |> 
-      tail(n = 10) |> 
+      tail(n = 5) |> 
       summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
       mutate(time = 9)
   ) %>%
@@ -589,18 +589,18 @@ By design, the actual linearity term $L$ diagnosed from the actual steady-state 
 #| out-width: 60%
 
 df_lin <- df_ccascade_nonlin |> 
-  filter(realyear %in% 1765:1774) |> 
+  filter(realyear %in% 1765:1769) |> 
   summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
   mutate(time = 0) |> 
   bind_rows(
     df_ccascade_nonlin |> 
-      filter(realyear %in% 2009:2018) |> 
+      filter(realyear %in% 2014:2018) |> 
       summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
       mutate(time = 1)
   ) |> 
   bind_rows(
     df_ccascade_nonlin |> 
-      tail(n = 10) |> 
+      tail(n = 5) |> 
       summarise(cveg = mean(cveg), npp = mean(bp), c_star = mean(c_star)) |> 
       mutate(time = 9)
   ) %>%
@@ -742,7 +742,7 @@ df_biomeep <- out$data[[1]]$output_annual_tile |>
 Smooth to avoid oscillations
 ```{r}
 #| code-fold: true
-#| 
+
 # determine frequency
 spec <- spectrum(
   df_biomeep |> 
@@ -756,14 +756,18 @@ period <- 1 / freq
 
 vars <- c("npp", "cveg")
 
+win <- ceiling(period)
+
 df_biomeep_smooth <- df_biomeep %>%
   mutate(
     across(
       all_of(vars),
-      ~ slide_dbl(.x, mean, .before = ceiling(period) - 1, .complete = TRUE),
+      ~ slide_dbl(.x, mean, .after = win - 1, .complete = TRUE),
       .names = "{.col}"
     )
-  )
+  ) %>%
+  slice(1:(n() - win + 1))
+
 ```
 
 Estimate steady state.
@@ -787,7 +791,7 @@ df_biomeep_smooth <- df_biomeep_smooth |>
 #| out-width: 80%
 
 c_star_act <- df_biomeep_smooth |> 
-  tail(n = ceiling(period)) |> 
+  tail(n = 5) |> 
   pull(cveg) |> 
   mean(na.rm = TRUE)
 
@@ -798,7 +802,7 @@ df_biomeep_smooth |>
   khroma::scale_color_okabeito(name = "") +
   theme_classic() +
   labs(x = "Simulation year", y = "Pool size (kg C)") +
-  xlim(2018, 2500) + 
+  xlim(1980, 2500) + 
   ylim(11, 14) +
   geom_vline(xintercept = 2018, linetype = "dotted") +
   geom_hline(yintercept = c_star_act, linetype = "dotted")
@@ -854,18 +858,21 @@ By design, the actual linearity term $L$ diagnosed from the actual steady-state 
 #| out-width: 60%
 
 df_lin <- df_biomeep_smooth |> 
-  filter(realyear %in% 1765:(1765+ceiling(period))) |> 
+  # filter(realyear %in% 1765:(1765+ceiling(period))) |> 
+  filter(realyear %in% 1765:1769) |> 
   summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
   mutate(time = 0) |> 
   bind_rows(
     df_biomeep_smooth |> 
-      filter(realyear %in% (2018-ceiling(period)):2018) |> 
+      # filter(realyear %in% (2018-ceiling(period)):2018) |> 
+      filter(realyear %in% 2014:2018) |> 
       summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
       mutate(time = 1)
   ) |> 
   bind_rows(
     df_biomeep_smooth |> 
-      tail(n = ceiling(period)) |> 
+      # tail(n = ceiling(period)) |> 
+      tail(n = 5) |> 
       summarise(cveg = mean(cveg), npp = mean(npp), c_star = mean(c_star)) |> 
       mutate(time = 9)
   ) %>%
@@ -905,42 +912,50 @@ The result of the steady-state estimation, made for year 2018, is summarised bel
 
 ### Linear model
 
-- Vegetation C pool is 7.0% below its steady-state. 
-- The estimated steady-state vegetation C pool is 4.0% below its actual steady-state.
-
 ```{r}
 #| code-fold: true
 # linear model (ccascade)
-df_ccascade |> 
+summ_ccascade <- df_ccascade |> 
   filter(realyear == 2018) |> 
-  select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) |> 
+  dplyr::select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) 
+  
+summ_ccascade |> 
   kable()
 ```
 
-### Non-linear model
+- Vegetation C pool is `{r} format(abs(summ_ccascade$reldiff_cveg[1]), digits = 2)` below its steady-state. 
+- The estimated steady-state vegetation C pool is `{r} format(abs(summ_ccascade$reldiff_cstar[1]), digits = 2)`% below its actual steady-state.
 
-- Vegetation C pool is 6.3% below its steady-state. 
-- The estimated steady-state vegetation C pool is 1.4% below its actual steady-state.
+
+### Non-linear model
 
 ```{r}
 #| code-fold: true
 # non-linear model (ccascade)
-df_ccascade_nonlin |> 
+summ_ccascade_nonlin <- df_ccascade_nonlin |> 
   filter(realyear == 2018) |> 
-  select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) |> 
+  dplyr::select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) 
+  
+summ_ccascade_nonlin |> 
   kable()
 ```
 
-### Non-linear model (BiomeEP)
+- Vegetation C pool is `{r} format(abs(summ_ccascade_nonlin$reldiff_cveg[1]), digits = 2)`% below its steady-state. 
+- The estimated steady-state vegetation C pool is `{r} format(abs(summ_ccascade_nonlin$reldiff_cstar[1]), digits = 2)`% below its actual steady-state.
 
-- Vegetation C pool is 3.9% below its steady-state. 
-- The estimated steady-state vegetation C pool is 2.9% below its actual steady-state.
+
+### Non-linear model (BiomeEP)
 
 ```{r}
 #| code-fold: true
 # non-linear model (BiomeEP)
-df_biomeep_smooth |> 
+summm_biomeep <- df_biomeep_smooth |> 
   filter(realyear == 2018) |> 
-  select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) |> 
+  dplyr::select(realyear, cveg, c_star, diff_cveg, diff_cstar, reldiff_cveg, reldiff_cstar) 
+  
+summm_biomeep |> 
   kable()
 ```
+
+- Vegetation C pool is `{r} format(abs(summm_biomeep$reldiff_cveg[1]), digits = 2)`% below its steady-state. 
+- The estimated steady-state vegetation C pool is `{r} format(abs(summm_biomeep$reldiff_cstar[1]), digits = 2)`% below its actual steady-state.
