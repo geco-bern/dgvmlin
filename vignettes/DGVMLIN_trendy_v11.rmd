@@ -12,10 +12,6 @@ output:
 ```{r}
 library(tidyverse)
 library(here)
-library(dplyr)
-library(effectsize)
-library(openxlsx)
-
 # remotes::install_github("geco-bern/rgeco")
 #library(rgeco)
 
@@ -23,19 +19,17 @@ source(here("R/collect_gdf_bymodl_HZ_Trendyv11.R"))
 source(here("R/nc_to_df.R"))
 source(here("R/read_nc_onefile.R"))
 source(here("R/regrid_df.R"))
-
 # # create script from this vignette
 # knitr::purl(
-#   here("vignettes/DGVMLIN_trendy_v11.rmd"),
-#   output = here("analysis/dgmvlin.R"),
+#   here("vignettes/DGVMLIN_trendy_v11.rmd"), 
+#   output = here("analysis/dgmvlin.R"), 
 #   documentation = 1
 #   )
 
 #setwd("~/E/RA/DGVM_density_plot/trendy_v9") #h
 #setwd('F:/Oxford/Chapter_four/dgvmlin')
-# If you only want to draw figures, only do this: load(here("data/gdf_Trendyv11_202406.rda"))
+# If you only want to draw figures, only do this: load(here("data/gdf_Trendyv11_202406.rda")) 
 ```
-
 ## If you just want to reproduce our figures
 
 Step 1: run library and source trunk
@@ -122,79 +116,76 @@ No separate output for pools (wood, leaf, root)
 
 Determine for which models we have all the files (cWood and cVeg) to calculate wood mass fractions and create system command.
 ```{r}
-filnams <- read_csv(here("data-raw/filnams_trendy_v11_S1.csv")) %>%
+filnams <- read_csv(here("data-raw/filnams_trendy_v11_S1.csv" )) %>% 
   setNames(c("modl", paste0("filn_", names(.)[-1])))
 
-modls <- filnams %>%
+modls <- filnams %>% 
   pull(modl)
 
 # This is a huge list of nc files that we will read
-df <- filnams %>%
-
+df <- filnams %>% 
+  
   ## filter and correct typo
   filter(modl %in% modls) %>%
-  mutate(dir = paste0(here(), "")) %>%
-
+  mutate(dir = paste0(here(),"")) %>%
+  
   # Please make sure R here() grab an address pointing to the data folder containing your nc files
   # my here() has "F:/Oxford/Chapter_four/dgvmlin", under this address it has a data folder
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "\\.nc", "")) %>%
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "cleaf", "cLeaf")) %>%
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "croot", "cRoot")) %>%
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "csoil", "cSoil")) %>%
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "cveg", "cVeg")) %>%
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "cwood", "cWood")) %>%
-  mutate_at(vars(starts_with("filn")), ~ str_replace(., "croot", "cRoot")) %>%
-
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "\\.nc", "")) %>%
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "cleaf", "cLeaf")) %>%
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "croot", "cRoot")) %>%
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "csoil", "cSoil")) %>%
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "cveg", "cVeg")) %>%
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "cwood", "cWood")) %>%
+  mutate_at(vars(starts_with("filn")), ~str_replace(., "croot", "cRoot")) %>%
+  
   ## get starting year
-  left_join(
-    read_csv(here("data-raw/startyear_trendy_v11_S1.csv")),
-    by = "modl"
-  ) %>%
-  rename(startyear_init = startyear, startyear_npp_init = startyear_npp) %>%
-  mutate(
-    endyear_init = startyear_init + 9,
-    endyear_npp_init = startyear_npp_init + 9
-  ) %>%
+  left_join(read_csv(here("data-raw/startyear_trendy_v11_S1.csv" )), by = "modl") %>% 
+  rename(startyear_init = startyear, startyear_npp_init = startyear_npp) %>% 
+  mutate(endyear_init = startyear_init + 9, endyear_npp_init = startyear_npp_init + 9) %>% 
+  
+  rowwise() %>% 
+  mutate(filn_cVeg_init  = paste0(filn_cVeg, "_INIT_MEAN"),
+         filn_cVeg_final = paste0(filn_cVeg, "_FINAL_MEAN"),
 
-  rowwise() %>%
-  mutate(
-    filn_cVeg_init = paste0(filn_cVeg, "_INIT_MEAN"),
-    filn_cVeg_final = paste0(filn_cVeg, "_FINAL_MEAN"),
+         filn_cLeaf_init  = paste0(filn_cLeaf, "_INIT_MEAN"),
+         filn_cLeaf_final = paste0(filn_cLeaf, "_FINAL_MEAN"),
 
-    filn_cLeaf_init = paste0(filn_cLeaf, "_INIT_MEAN"),
-    filn_cLeaf_final = paste0(filn_cLeaf, "_FINAL_MEAN"),
+         filn_cRoot_init  = paste0(filn_cRoot, "_INIT_MEAN"),
+         filn_cRoot_final = paste0(filn_cRoot, "_FINAL_MEAN"),
 
-    filn_cRoot_init = paste0(filn_cRoot, "_INIT_MEAN"),
-    filn_cRoot_final = paste0(filn_cRoot, "_FINAL_MEAN"),
+         filn_cWood_init  = paste0(filn_cWood, "_INIT_MEAN"),
+         filn_cWood_final = paste0(filn_cWood, "_FINAL_MEAN"),
+         
+         filn_cSoil_init  = paste0(filn_cSoil, "_INIT_MEAN"),
+         filn_cSoil_final = paste0(filn_cSoil, "_FINAL_MEAN"),
+         
+         filn_cSoil_change = paste0(filn_cSoil, "_CHANGE"),
+         filn_cVeg_change  = paste0(filn_cVeg, "_CHANGE"),
+         filn_cLeaf_change = paste0(filn_cLeaf, "_CHANGE"),
+         filn_cWood_change = paste0(filn_cWood, "_CHANGE"),
+         filn_cRoot_change = paste0(filn_cRoot, "_CHANGE"),
+                  
+         filn_npp_init  = paste0(filn_npp, "_INIT_MEAN"),
+         filn_npp_final = paste0(filn_npp, "_FINAL_MEAN"),
+         
+         filn_gpp_init  = paste0(filn_gpp, "_INIT_MEAN"),
+         filn_gpp_final = paste0(filn_gpp, "_FINAL_MEAN"),
+          
+         filn_rh_init  = paste0(filn_rh, "_INIT_MEAN"),
+         filn_rh_final = paste0(filn_rh, "_FINAL_MEAN"),
+         
+         filn_cLitter_init  = paste0(filn_cLitter, "_INIT_MEAN"),
+         filn_cLitter_final = paste0(filn_cLitter, "_FINAL_MEAN"),
+         
+         filn_fRootLitter_final = paste0(filn_fRootLitter, "_FINAL_MEAN"),
+         filn_fWoodLitter_final = paste0(filn_fWoodLitter, "_FINAL_MEAN")
+         )
 
-    filn_cWood_init = paste0(filn_cWood, "_INIT_MEAN"),
-    filn_cWood_final = paste0(filn_cWood, "_FINAL_MEAN"),
+# Note that the above codes will report the lack of data and fill them with NA. Don't worry. Our analysis does not need quite all variables.
 
-    filn_cSoil_init = paste0(filn_cSoil, "_INIT_MEAN"),
-    filn_cSoil_final = paste0(filn_cSoil, "_FINAL_MEAN"),
 
-    filn_cSoil_change = paste0(filn_cSoil, "_CHANGE"),
-    filn_cVeg_change = paste0(filn_cVeg, "_CHANGE"),
-    filn_cLeaf_change = paste0(filn_cLeaf, "_CHANGE"),
-    filn_cWood_change = paste0(filn_cWood, "_CHANGE"),
-    filn_cRoot_change = paste0(filn_cRoot, "_CHANGE"),
 
-    filn_npp_init = paste0(filn_npp, "_INIT_MEAN"),
-    filn_npp_final = paste0(filn_npp, "_FINAL_MEAN"),
-
-    filn_gpp_init = paste0(filn_gpp, "_INIT_MEAN"),
-    filn_gpp_final = paste0(filn_gpp, "_FINAL_MEAN"),
-
-    filn_rh_init = paste0(filn_rh, "_INIT_MEAN"),
-    filn_rh_final = paste0(filn_rh, "_FINAL_MEAN"),
-
-    filn_cLitter_init = paste0(filn_cLitter, "_INIT_MEAN"),
-    filn_cLitter_final = paste0(filn_cLitter, "_FINAL_MEAN"),
-
-    # xxx huan: missing columns
-    # filn_fRootLitter_final = paste0(filn_fRootLitter, "_FINAL_MEAN"),
-    # filn_fWoodLitter_final = paste0(filn_fWoodLitter, "_FINAL_MEAN")
-  )
 ```
 
 ## Collect data
@@ -208,6 +199,7 @@ gdf <- purrr::map(
 
   as.list(seq(nrow(df))),
   ~collect_gdf_bymodl(
+
     df$modl[.],
     df$dir[.],
 
@@ -233,6 +225,7 @@ gdf <- purrr::map(
     df$filn_cVeg_change[.],
     df$filn_cWood_change[.],
     df$filn_cRoot_change[.],
+
     
     df$filn_gpp_init[.],
     df$filn_gpp_final[.],
@@ -243,10 +236,9 @@ gdf <- purrr::map(
     df$filn_cLitter_init[.],
     df$filn_cLitter_final[.],
     
-    df$filn_landCoverFrac[.]
-
-    # df$filn_fRootLitter_final[.],
-    # df$filn_fWoodLitter_final[.]
+    df$filn_landCoverFrac[.],
+    df$filn_fRootLitter_final[.],
+    df$filn_fWoodLitter_final[.]
     
     )) %>% 
   
@@ -286,6 +278,7 @@ desert_filter_wide <- function(df){
     ))
 }
 
+
 gdf <- gdf %>% 
   mutate(
     data = map(data, ~remove_nonvegetated(.)),
@@ -320,26 +313,27 @@ gdf <- gdf |>
 ## Calculate relationships
 
 ```{r calc_relationships}
-calc_steady_state <- function(c_t, dcdt, npp) {
+calc_steady_state <- function(c_t, dcdt, npp){
   # c_t * 1/(1 - dcdt/npp)
   c_t * npp / (npp - dcdt)
 }
 
-calc_steady_state_alternative <- function(c_t, npp, rh) {
+calc_steady_state_alternative <- function(c_t, npp, rh){
   c_t * npp / rh
 }
 
-get_steadystate <- function(df) {
+get_steadystate <- function(df){
+
   df %>%
 
     mutate(
       csoil_change = csoil_change / 10,
       cveg_change = cveg_change / 10,
-      cRoot_change = cRoot_change / 10,
-      cWood_change = cWood_change / 10, # because the change was calculated as the difference in the last 10 years
+      cRoot_change = cRoot_change/10,
+       cWood_change = cWood_change/10, # because the change was calculated as the difference in the last 10 years
       npp_root = cRoot_change + fRootLitter,
       npp_wood = cWood_change + fWoodLitter
-    ) %>%
+      ) %>%
 
     # applying clean function
     mutate(
@@ -347,102 +341,103 @@ get_steadystate <- function(df) {
         c_t = csoil_final,
         dcdt = csoil_change,
         npp = npp_final
-      ),
+        ),
       cveg_star_final = calc_steady_state(
         c_t = cveg_final,
         dcdt = cveg_change,
         npp = npp_final
-      ),
+        ),
       croot_star_final = calc_steady_state(
         c_t = croot_final,
         dcdt = cRoot_change,
         npp = npp_root
-      ),
-      cwood_star_final = calc_steady_state(
+        ),
+       cwood_star_final = calc_steady_state(
         c_t = cwood_final,
         dcdt = cWood_change,
         npp = npp_wood
+        )
       )
-    )
 }
 
-get_deltas <- function(df) {
+get_deltas <- function(df){
   df %>%
-    mutate(
-      cveg_ag_init = cleaf_init + cwood_init,
-      cveg_ag_final = cleaf_final + cwood_final,
-      csoil_final = csoil_final + cLitter_final,
-      csoil_init = csoil_init + cLitter_init
-    ) %>%
-    mutate(
-      dcveg = (cveg_final - cveg_init) / cveg_init,
-      dcveg_ag = (cveg_ag_final - cveg_ag_init) / cveg_ag_init,
-      dnpp = (npp_final - npp_init) / npp_init,
-      dcsoil = (csoil_final - csoil_init) / csoil_init,
-      dcsoil_star = (csoil_star_final - csoil_init) / csoil_init,
-      dgpp = (gpp_final - gpp_init) / gpp_init,
-      dcleaf = (cleaf_final - cleaf_init) / cleaf_init,
-      dcveg_star = (cveg_star_final - cveg_init) / cveg_init,
-      dcroot = (croot_final - croot_init) / croot_init,
-      dcwood = (cwood_final - cwood_init) / cwood_init,
-      dcroot_star = (croot_star_final - croot_init) / croot_init,
-      dcwood_star = (cwood_star_final - cwood_init) / cwood_init
-    ) %>%
-    mutate(
-      l_npp_gpp = dnpp / dgpp,
-      l_croot_cveg = dcroot / dcveg,
-      l_croot_cveg_star = dcroot / dcveg_star,
-      l_cveg_star_npp = dcveg_star / dnpp,
-      l_cleaf_cveg = dcleaf / dcveg,
-      l_cleaf_cveg_star = dcleaf / dcveg_star,
-      l_cwood_cveg = dcwood / dcveg,
-      l_cleaf_croot = dcleaf / dcroot
-    )
+    mutate(cveg_ag_init = cleaf_init + cwood_init,
+           cveg_ag_final = cleaf_final + cwood_final,
+           csoil_final = csoil_final + cLitter_final,
+           csoil_init = csoil_init + cLitter_init
+           ) %>%
+    mutate(dcveg = (cveg_final - cveg_init)/cveg_init,
+           dcveg_ag = (cveg_ag_final - cveg_ag_init)/cveg_ag_init,
+           dnpp = (npp_final - npp_init)/npp_init,
+           dcsoil = (csoil_final - csoil_init)/csoil_init,
+           dcsoil_star = (csoil_star_final - csoil_init)/csoil_init,
+           dgpp = (gpp_final - gpp_init)/gpp_init,
+           dcleaf= (cleaf_final - cleaf_init)/cleaf_init,
+           dcveg_star = (cveg_star_final - cveg_init)/cveg_init,
+           dcroot = (croot_final - croot_init)/croot_init,
+           dcwood = (cwood_final - cwood_init)/cwood_init,
+           dcroot_star = (croot_star_final - croot_init)/croot_init,
+           dcwood_star = (cwood_star_final - cwood_init)/cwood_init
+           ) %>%
+    mutate(l_npp_gpp = dnpp / dgpp,
+           l_croot_cveg = dcroot / dcveg,
+           l_croot_cveg_star = dcroot / dcveg_star,
+           l_cveg_star_npp = dcveg_star / dnpp,
+           l_cleaf_cveg = dcleaf / dcveg,
+           l_cleaf_cveg_star = dcleaf / dcveg_star,
+           l_cwood_cveg = dcwood / dcveg,
+           l_cleaf_croot = dcleaf / dcroot
+           )
 }
 
-filter_no_landcoverchange <- function(df) {
+filter_no_landcoverchange <- function(df){
   df %>%
     filter(landCoverFrac == 0)
 }
 
 gdf <- gdf %>%
   mutate(
-    data = purrr::map(data, ~ get_steadystate(.)),
-  ) %>%
+    data = purrr::map(data, ~get_steadystate(.)),
+    ) %>%
   mutate(
-    data = purrr::map(data, ~ get_deltas(.))
-  ) %>%
+    data = purrr::map(data, ~get_deltas(.))
+    ) %>%
   mutate(
-    data = purrr::map(data, ~ filter_no_landcoverchange(.))
-  )
+    data = purrr::map(data, ~filter_no_landcoverchange(.))
+    )
 ```
 
 ## Regrid
 
 Regrid all model outputs to a common 1x1 deg grid. Note: this takes quite long, therefore reading from file if available.
 ```{r compile gdf}
-filnam <- here("data/gdf_20260428.rds")
+filnam <- here("data/gdf.rds")
 
-if (!file.exists(filnam)) {
-  gdf <- gdf %>%
-    slice(1) |>
+if (!file.exists(filnam)){
+  
+  gdf <- gdf %>% 
+    slice(1) |> 
     mutate(
       data_1x1deg = purrr::map(
-        data,
-        ~ regrid_df(
-          .,
-          res = 1.0,
+        data, 
+        ~regrid_df(
+          ., 
+          res = 1.0, 
           lon_start = -180,
           lon_end = 180,
           lat_start = -90,
           lat_end = 90
+          )
         )
       )
-    )
 
   readr::write_rds(gdf, file = filnam)
+  
 } else {
+  
   gdf <- readr::read_rds(file = filnam)
+  
 }
 ```
 
@@ -509,86 +504,77 @@ summary_table <- tibble(
   )
 )
 
-gdf <- gdf %>% 
-  left_join(
-    summary_table,
-    by = join_by(modl)
-  )
 
-readr::write_rds(gdf, file = here("data/gdf_20260428.rds")))
+# gdf <- gdf %>% 
+#   left_join(
+#     summary_table,
+#     by = join_by(modl)
+#   )
+
+#readr::write_rds(gdf, file = here('data/gdf_before_regrid.rds'))
 ```
 
 ## Plot relationships
 
 Preparations.
 ```{r}
-get_p_value <- function(x, na.rm = TRUE) {
+get_p_value <- function(x, na.rm=TRUE) {
   p.value <- t.test(x, mu = 1)$p.value
   p.value
 }
 
-# sample for even representation, number determined by model with smallest
+# sample for even representation, number determined by model with smallest 
 # number of gridcells
 # XXX this seems to have been updated to using more values per model. Please correct.
-# nsample <- gdf %>%
-#   mutate(len = purrr::map_int(data, ~nrow(.))) %>%
-#   pull(len) %>%
+# nsample <- gdf %>% 
+#   mutate(len = purrr::map_int(data, ~nrow(.))) %>% 
+#   pull(len) %>% 
 #   min()
 
-# xxx adopted specification from paper here
+# xxx adopted specification from paper here 
 nsample <- 58697
 
 coast <- rnaturalearth::ne_coastline(
-  scale = 110,
+  scale = 110, 
   returnclass = "sf"
-)
+  )
 
 # 1. Define your custom order
 model_order <- c(
-  "VISIT-NIES",
-  "CLASSIC",
-  "IBIS",
-  "LPJ",
-  "VISIT",
-  "ISBA-CTRIP",
-  "ORCHIDEE",
-  "CLM5.0",
-  "DLEM",
-  "ISAM",
-  "JSBACH",
-  "JULES",
-  "LPX-Bern",
-  "SDGVM",
-  "CABLE-POP",
-  "LPJ-GUESS"
+  "VISIT-NIES", "CLASSIC", "IBIS", "LPJ", "VISIT", 
+  "ISBA-CTRIP", "ORCHIDEE", "CLM5.0", "DLEM", "ISAM", 
+  "JSBACH", "JULES", "LPX-Bern", "SDGVM", "CABLE-POP", "LPJ-GUESS"
 )
 
 display_titles <- c(
   "VISIT-NIES" = "VISIT-NIES",
-  "CLASSIC" = "CLASSIC",
-  "IBIS" = "IBIS",
-  "LPJ" = "LPJ",
-  "VISIT" = "VISIT",
+  "CLASSIC"    = "CLASSIC",
+  "IBIS"       = "IBIS",
+  "LPJ"        = "LPJ",
+  "VISIT"      = "VISIT",
   "ISBA-CTRIP" = "ISBA-CTRIP",
-  "ORCHIDEE" = "ORCHIDEE (C-N)",
-  "CLM5.0" = "CLM5.0 (C-N)",
-  "DLEM" = "DLEM (C-N)",
-  "ISAM" = "ISAM (C-N)",
-  "JSBACH" = "JSBACH (C-N)",
-  "JULES" = "JULES (C-N)",
-  "LPX-Bern" = "LPX-Bern(C-N)",
-  "SDGVM" = "SDGVM (C-N, Veg.D.)",
-  "CABLE-POP" = "CABLE-POP (C-N, Veg.D.)",
-  "LPJ-GUESS" = "LPJ-GUESS (C-N, Veg.D.)"
+  "ORCHIDEE"   = "ORCHIDEE (C-N)",
+  "CLM5.0"     = "CLM5.0(C-N)",
+  "DLEM"       = "DLEM(C-N)",
+  "ISAM"       = "ISAM(C-N)",
+  "JSBACH"     = "JSBACH(C-N)",
+  "JULES"      = "JULES(C-N)",
+  "LPX-Bern"   = "LPX-Bern(C-N)",
+  "SDGVM"      = "SDGVM(C-N)(Veg.D.)",
+  "CABLE-POP"  = "CABLE-POP(C-N)(Veg.D.)",
+  "LPJ-GUESS"  = "LPJ-GUESS(C-N)(Veg.D.)"
 )
 
 # 2. Ensure gdf$modl is a factor with this specific order
+
 gdf$modl <- factor(gdf$modl, levels = model_order)
 gdf <- gdf %>% arrange(modl)
 
-model_order_with_all <- c("ALL", model_order)
-display_titles_with_all <- c("ALL" = "ALL", display_titles)
+model_order_with_all <- c("ALL",model_order)
+display_titles_with_all <- c("ALL"="ALL",display_titles)
+
 ```
+
 
 ### GPP vs NPP 
 
@@ -669,7 +655,7 @@ gg3_gpp_npp <- cowplot::plot_grid(
 
 gg3_gpp_npp
 
-# ggsave(here("fig/dgpp_dnpp_trendy_s1_pooled.pdf"), plot = gg3_gpp_npp, width = 8, height = 4)
+#ggsave(here("fig/dgpp_dnpp_trendy_s1_pooled.pdf"), plot = gg3_gpp_npp, width = 8, height = 4)
 ```
 
 #### By model
@@ -691,9 +677,7 @@ gdf_sampled <- gdf %>%
     !is.nan(dnpp), !is.nan(dgpp), 
     !is.infinite(dnpp), !is.infinite(dgpp),
     !is.nan(l_npp_gpp), !is.infinite(l_npp_gpp))
-
 gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
-
 # density scatter
 gdf_sampled %>%
   ggplot(aes(x = dgpp, y = dnpp)) +
@@ -708,7 +692,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, "GPP/GPP")),
     y = expression(paste(Delta, "NPP/NPP"))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free", labeller = as_labeller(display_titles_with_all)) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -910,6 +894,9 @@ gg_map_aggSD <- ggplot() +
   theme_void()
 
 gg_map_aggSD
+
+
+
 ```
 
 #### Publication Fig. 1
@@ -3312,19 +3299,36 @@ bymodel_map1 <- ggplot() +
 
 
 ggsave(bymodel_map1,filename = here("fig/RRa_trendyv11_bymodelv1.jpg"),height=10, width = 10)
+
 ```
 
 ## Summary table
 
 ```{r summary_table, fig.height=9, out.width="80%"}
-# write.csv(summary_table, file = here("data/summary_table_figure2.csv"))     
-summary_table <- read_csv(here("data/summary_table_figure2.csv"))
+
+#write.csv(summary_table,file = here("data/summary_table_figure2.csv"))
+
+     #                         new version                         ~~~
+     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     
+     
+summary_table <- read.csv(here("data/summary_table_figure2.csv"))
+cn_id <- tibble(
+  cn_coupled = c(TRUE, FALSE),
+  cn_label = c("C-N", "    C-only")
+)
+
+veg_demo_id<- tibble(
+  veg_demo = c(TRUE, FALSE),
+  cn_label = c("Veg. Demo.", "no Veg. Demo.")
+)
 
 model_order <- c(
   "VISIT-NIES", "CLASSIC", "IBIS", "LPJ", "VISIT", 
   "ISBA-CTRIP", "ORCHIDEE", "CLM5.0", "DLEM", "ISAM", 
   "JSBACH", "JULES", "LPX-Bern", "SDGVM", "CABLE-POP", "LPJ-GUESS"
 )
+
 
 df <- summary_table %>% 
   filter(modl != "ALL") %>%
@@ -3364,7 +3368,8 @@ df_notes <- df %>%
     label = ifelse(note, "Yes", "No")
   )
 
-# df_plot <- bind_rows(df_long, df_notes)
+
+df_plot <- bind_rows(df_long, df_notes)
 
 gg1 <- ggplot(df_plot, aes(x = link, y = modl, fill = value)) +
   geom_tile(color = "white", show.legend = FALSE) +
@@ -3396,7 +3401,11 @@ gg1 <- ggplot(df_plot, aes(x = link, y = modl, fill = value)) +
   ) +
   labs(fill = "Value", y = "", x = "")
 
+
+
+
 # C-N vs C-only
+
 df_long <- df %>%
   group_by(cn_coupled) |> 
   summarise(across(all_of(column_order[1:5]), ~ median(.x, na.rm = TRUE))) |>
@@ -3412,6 +3421,7 @@ df_long <- df_long |>
   ) |> 
   mutate(link = factor(link, levels = c(column_order[1:5], "Extra1", "Extra2"))) |> 
   left_join(cn_id, by = "cn_coupled")
+
 
 gg2 <- ggplot(df_long, aes(x = link, y = cn_label, fill = value)) +
   geom_tile(color = "white", show.legend = FALSE) +
@@ -3478,6 +3488,7 @@ df_long <- df %>%
   summarise(across(all_of(column_order[1:5]), ~ median(.x, na.rm = TRUE))) |> 
   pivot_longer(cols = everything(), names_to = "link", values_to = "value")
 
+
 new_cols <- tibble(
   link = c("Extra_1", "Extra_2"), 
   value = as.numeric(NA)
@@ -3506,33 +3517,38 @@ gg3 <- ggplot(df_long, aes(x = link, y = label, fill = value)) +
   theme(
     axis.text.x = element_blank(),
     panel.grid = element_blank(),
+    legend.position = "none"
+  ) +
+  labs(fill = "Value", y = "", x = "")
+
+df_long_gg4 <- df_long
+
+df_long_gg4$label <- "Observation"
+df_long_gg4$value <- c(NA, 0.63, 1.22, 1.09, NA, NA, NA)
+# link column remains unchanged
+
+# Plot gg4 (same structure as gg3)
+gg4 <- ggplot(df_long_gg4, aes(x = link, y = label, fill = value)) +
+  geom_tile(color = "white", show.legend = TRUE) +
+  geom_text(aes(label = round(value, 2)), color = "grey30") +
+  khroma::scale_fill_vik(
+    name = expression(paste(italic(L))),
+    limits = c(0.2, 1.8),  
+    oob = scales::squish,
+    midpoint = 1,
+    reverse = TRUE,
+    na.value = "white"
+  ) +
+  scale_x_discrete(labels = c(column_labels, "New Col 1", "New Col 2"), position = "top") +
+  coord_fixed(ratio = 0.5) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
     legend.position = "bottom"
   ) +
   labs(fill = "Value", y = "", x = "")
 
-# Yes or no label
-df_longyesno <- df[, c(2, 3,4)] %>%
-  pivot_longer(-modl, names_to = "link", values_to = "value") |> 
-  mutate(link = factor(link))
-
-gg_yesno <- ggplot(df_longyesno, aes(x = link, y = modl, fill = value)) +
-  geom_tile(color = "white", show.legend = FALSE) +
-  geom_text(aes(label = value), color = "grey30") +
-  scale_x_discrete(labels = c('C-N','Veg. Demo.'), position = "top") +
-  scale_y_discrete(limits = rev(unique(df$modl))) +
-  scale_fill_manual(values = c("white", "lightgrey")) +
-  coord_fixed(ratio = 0.5) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5),
-    panel.grid = element_blank(),
-    legend.position = "bottom"
-  ) +
-  labs(
-    fill = "Value",
-    y = "",
-    x = ""
-    )
 
 # get legend
 # Dummy plot just to extract the legend
@@ -3574,14 +3590,14 @@ legend <- cowplot::get_legend(legend_plot)
 # install.packages("egg")
 library(egg)
 heatmaps <- egg::ggarrange(
-  gg1, gg2, gg2veg, gg3,
+  gg1, gg2, gg2veg, gg3, gg4,
   ncol = 1,
-  heights = c(1, 0.189, 0.189, 0.25), # Adjust for 4 plots
-  labels = c("a", "b", "c", "d"),
+  heights = c(1, 0.189, 0.189,0.189, 0.25), # Adjust for 4 plots
+  labels = c("a", "b", "c", "d","e"),
   debug = FALSE # Set to TRUE to see the alignment boxes
 )
 
-ggsave(plot = heatmaps, here("fig/summary_tablev20250825.pdf"), width = 11.82, height = 8.73)
+ggsave(plot = heatmaps,here("fig/summary_tablev2026.pdf"), width = 11.82, height = 9.73)
 ```
 
 ## SI data table
@@ -3923,6 +3939,8 @@ write.xlsx(
   rowNames = TRUE
 )
 
+
+
 Quantile_result <- gdf %>%
       mutate(n = purrr::map_int(data, ~nrow(.))) %>%
       mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
@@ -3938,6 +3956,11 @@ Quantile_result <- gdf %>%
       filter(!modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
       mutate(modl = "not Veg Demo"))
 
+
+
+library(dplyr)
+library(effectsize)
+library(openxlsx)
 
 run_stats <- function(data, value_col, lower = -100, upper = 100) {
 
@@ -4025,6 +4048,7 @@ write.xlsx(
   file = "manuscript_statistics_veg_demo.xlsx",
   rowNames = TRUE
 )
+
 ```
 
 

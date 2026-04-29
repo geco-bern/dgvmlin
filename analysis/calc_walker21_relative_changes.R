@@ -134,6 +134,11 @@ gg_cveg_npp <- cowplot::plot_grid(
   labels = c("a", "b")
 )
 
+mystat<-out_cveg_npp%>%
+  filter(ratio > -1 & ratio <2.5)%>%
+  dplyr::select(ratio)
+median(mystat$ratio)
+
 # gg_cveg_star_npp
 
 ## GPP-NPP ---------------------------------------------------------------------
@@ -189,6 +194,14 @@ out_croot_cveg <- purrr::map_dfr(
 write_csv(out_croot_cveg, here::here("data/out_bootstrap_croot_cveg.csv"))
 # out_cveg_npp <- read_csv(here::here("data/out_bootstrap_croot_cveg.csv"))
 
+
+
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##                               Figure drawing                             ----
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
 gg_scatter_croot_cveg <- out_croot_cveg |>
   ggplot(aes(x, y)) +
   geom_hex(bins = 50, show.legend = FALSE) +
@@ -236,7 +249,10 @@ gg_hist_croot_cveg <- out_croot_cveg |>
   labs(
     x = expression(paste(italic(L)[Croot:Cveg]))
   )
-
+mystat<-out_croot_cveg%>%
+  filter(ratio > -1 & ratio <2.5)%>%
+  dplyr::select(ratio)
+median(mystat$ratio)
 # gg_hist_croot_cveg
 
 # Combine density scatter and density distribution plots
@@ -341,6 +357,12 @@ gg_hist_cwood_cveg <- out_cwood_cveg |>
     x = expression(paste(italic(L)[Cwood:Cveg]))
   )
 
+mystat<-out_cwood_cveg%>%
+  filter(ratio > -1 & ratio <2.5)%>%
+  dplyr::select(ratio)
+median(mystat$ratio)
+
+
 # gg_hist_cwood_cveg
 
 # Combine density scatter and density distribution plots
@@ -352,6 +374,8 @@ gg_wood_cveg <- cowplot::plot_grid(
   ncol = 2,
   labels = c("e", "f")
 )
+
+
 
 # gg_wood_cveg
 
@@ -374,7 +398,12 @@ ggsave(
   width = 6,
   height = 8
 )
-
+ggsave(
+  here("fig/l_obs.jpg"),
+  plot = gg_obs,
+  width = 6,
+  height = 8
+)
 
 df_obs_overview <- bind_rows(
   df_npp,
