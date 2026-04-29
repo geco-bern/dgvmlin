@@ -39,8 +39,8 @@ sample_walker <- function(id, df_x, df_y) {
 }
 
 ## Cveg-NPP ---------------------------------------------------------------------
-# Need to convert 95% CI to SD by dividing by 1.96
-# Replace the NAs values in 95% CI for the coefficient of variation (SD/mean)
+# Select data: only from experimentally (controlled) elevated CO2 observations for 
+# variable that can be interpreted as NPP
 df_npp <- table2_walker %>%
   filter(interpret_var %in% c("NPP"), co2 == "eCO2") %>%
   mutate(
@@ -85,8 +85,8 @@ gg_scatter_cveg_npp <- out_cveg_npp |>
   xlim(-1, 2) +
   ylim(-1, 2) +
   labs(
-    x = expression(paste(Delta, "NPP/NPP")),
-    y = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg]))
+    x = expression(beta[NPP]),
+    y = expression(beta[Cveg])
   )
 
 # gg_scatter_cveg_npp
@@ -137,8 +137,6 @@ gg_cveg_npp <- cowplot::plot_grid(
 # gg_cveg_star_npp
 
 ## GPP-NPP ---------------------------------------------------------------------
-# Need to convert 95% CI to SD by dividing by 1.96
-# Replace the NAs values in 95% CI for the coefficient of variation (SD/mean)
 df_gpp <- table2_walker %>%
   filter(interpret_var %in% c("GPP"), co2 == "eCO2") %>%
   mutate(
@@ -155,8 +153,6 @@ View(df_gpp)
 # Therefore no analysis to be performend.
 
 ## Croot:Cveg ---------------------------------------------------------------------
-# Need to convert 95% CI to SD by dividing by 1.96
-# Replace the NAs values in 95% CI for the coefficient of variation (SD/mean)
 df_cveg <- table2_walker %>%
   filter(interpret_var == "Cveg", co2 == "eCO2") %>%
   mutate(
@@ -200,8 +196,8 @@ gg_scatter_croot_cveg <- out_croot_cveg |>
   xlim(-2, 4) +
   ylim(-2, 4) +
   labs(
-    x = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg])),
-    y = expression(paste(Delta, italic(C)[root], "/", italic(C)[root])),
+    x = expression(beta[Cveg]),
+    y = expression(beta[Croot])
   )
 
 # gg_scatter_croot_cveg
@@ -252,8 +248,6 @@ gg_croot_cveg <- cowplot::plot_grid(
 # gg_croot_cveg
 
 ## Cwood:Cveg ---------------------------------------------------------------------
-# Need to convert 95% CI to SD by dividing by 1.96
-# Replace the NAs values in 95% CI for the coefficient of variation (SD/mean)
 df_cveg <- table2_walker %>%
   filter(
     interpret_var == "Cveg", 
@@ -304,8 +298,8 @@ gg_scatter_cwood_cveg <- out_cwood_cveg |>
   xlim(-1, 2) +
   ylim(-1, 2) +
   labs(
-    x = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg])),
-    y = expression(paste(Delta, italic(C)[wood], "/", italic(C)[cwood])),
+    x = expression(beta[Cveg]),
+    y = expression(beta[Cwood])
   )
 
 # gg_scatter_cwood_cveg
