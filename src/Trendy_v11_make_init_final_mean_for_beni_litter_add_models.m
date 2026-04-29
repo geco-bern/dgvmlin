@@ -20,12 +20,12 @@ close all
 
 %These models are selected because they have all variables available
 Model_list={'CABLE-POP';'CLASSIC';'CLM5.0';'DLEM';'ISAM';'IBIS';'LPX-Bern';'VISIT';'SDGVM';'ISBA-CTRIP';'JSBACH';'JULES';'LPJ';'LPJ-GUESS';'VISIT-NIES';'ORCHIDEE'};
-
+Model_list={'JULES'};
 %Model_list={'LPJ-GUESS'};%In case you want one model only
 Variable_list={'gpp','npp'};
 Variable_list={'cVeg'};
 Variable_list={'rh','cSoil','cVeg','gpp','npp','cLitter','cWood','cLeaf','cRoot'};
-Variable_list={'cLeaf'};
+Variable_list={'cWood'};
 
 % VISIT don't have npp, we made it from gpp-ra
 % SDGVM land cover frac is too large to be read, I do it by cdo
@@ -38,7 +38,7 @@ Variable_list={'cLeaf'};
 
 %% read maps
 
-cd H:\Trendy_v11_data_temporary
+cd J:\Trendy_v11_data_temporary
 diary on
 % All the nc files downloaded from CMIP5 database stored here
 % To download input file, go to https://esgf-index1.ceda.ac.uk/search/cmip5-ceda/
@@ -69,11 +69,11 @@ for Variable_to_read_num=1:length(Variable_list)
             
             if size(Csoil,3)>1000 % so time more than 1000, it is monthly data
                 %nanmean needs the statistic toolbox
-                Csoil_before=nanmean(Csoil(:,:,1:120),3); % Average across the 1st to 10th years
-                Csoil_After=nanmean(Csoil(:,:,end-119:end),3);% Average across the 51st to 60th years
+                Csoil_before=mean(Csoil(:,:,1:120),3,'omitnan'); % Average across the 1st to 10th years
+                Csoil_After=mean(Csoil(:,:,end-119:end),3,'omitnan');% Average across the 51st to 60th years
             elseif size(Csoil,3)<1000 % it is annual data
-                Csoil_before=nanmean(Csoil(:,:,1:10),3); % Average across the 1st to 10th years
-                Csoil_After=nanmean(Csoil(:,:,end-9:end),3);
+                Csoil_before=mean(Csoil(:,:,1:10),3,'omitnan'); % Average across the 1st to 10th years
+                Csoil_After=mean(Csoil(:,:,end-9:end),3,'omitnan');
             end
             %         Csoil_before=Gap_fill_function(Csoil_before); %this is to fill as much NaN as possible, otherwise, average across several models will lost lots of grids.
             %         Csoil_before=Gap_fill_function(Csoil_before); %this is to fill as much NaN as possible, otherwise, average across several models will lost lots of grids.
@@ -174,11 +174,11 @@ for Variable_to_read_num=1:length(Variable_list)
             
             if size(Csoil,3)>1000 % so time more than 1000, it is monthly data
                 
-                Csoil_before=nanmean(Csoil(:,:,1:120),3); % Average across the 1st to 10th years
-                Csoil_After=nanmean(Csoil(:,:,end-119:end),3);% Average across the 51st to 60th years
+                Csoil_before=mean(Csoil(:,:,1:120),3,'omitnan'); % Average across the 1st to 10th years
+                Csoil_After=mean(Csoil(:,:,end-119:end),3,'omitnan');% Average across the 51st to 60th years
             elseif size(Csoil,3)<1000 % it is annual data
-                Csoil_before=nanmean(Csoil(:,:,1:10),3); % Average across the 1st to 10th years
-                Csoil_After=nanmean(Csoil(:,:,end-9:end),3);
+                Csoil_before=mean(Csoil(:,:,1:10),3,'omitnan'); % Average across the 1st to 10th years
+                Csoil_After=mean(Csoil(:,:,end-9:end),3,'omitnan');
             end
             %         Csoil_before=Gap_fill_function(Csoil_before); %this is to fill as much NaN as possible, otherwise, average across several models will lost lots of grids.
             %         Csoil_before=Gap_fill_function(Csoil_before); %this is to fill as much NaN as possible, otherwise, average across several models will lost lots of grids.
