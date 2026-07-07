@@ -171,7 +171,11 @@ df_cveg <- table2_walker %>%
 # View(df_cveg)
 
 df_croot <- table2_walker %>%
-  filter(interpret_var %in% c("Croot", "NPProot"), co2 == "eCO2") %>%
+  filter(interpret_var %in% c(
+    "Croot",
+    "NPProot"
+  ), 
+  co2 == "eCO2") %>%
   mutate(
     SD_beta = ifelse(
       is.na(SD_beta),
@@ -181,6 +185,7 @@ df_croot <- table2_walker %>%
   )
 
 # View(df_croot)
+
 set.seed(123)
 out_croot_cveg <- purrr::map_dfr(
   as.list(seq(1e5)),
@@ -189,13 +194,6 @@ out_croot_cveg <- purrr::map_dfr(
 
 write_csv(out_croot_cveg, here::here("data/out_bootstrap_croot_cveg.csv"))
 # out_cveg_npp <- read_csv(here::here("data/out_bootstrap_croot_cveg.csv"))
-
-
-
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-##                               Figure drawing                             ----
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 
 gg_scatter_croot_cveg <- out_croot_cveg |>
@@ -245,11 +243,14 @@ gg_hist_croot_cveg <- out_croot_cveg |>
   labs(
     x = expression(paste(italic(L)[Croot:Cveg]))
   )
-mystat<-out_croot_cveg%>%
-  filter(ratio > -1 & ratio <2.5)%>%
-  dplyr::select(ratio)
-median(mystat$ratio)
+
 # gg_hist_croot_cveg
+
+mystat <- out_croot_cveg %>%
+  filter(ratio > -1 & ratio <2.5) %>%
+  dplyr::select(ratio)
+
+median(mystat$ratio)
 
 # Combine density scatter and density distribution plots
 gg_croot_cveg <- cowplot::plot_grid(
@@ -406,10 +407,14 @@ df_obs_overview <- bind_rows(
   df_croot
 ) |>
   select(
-    Variable = interpret_var,
-    study,
+    `Variable (here)` = interpret_var,
+    `Variable (W21)` = variable,
+    Study = study,
+    `Study site` = study_site,
+    Species = species,
     beta,
-    sd_beta = SD_beta
+    `CI95(beta)` = X95CI_beta,
+    `SD(beta)` = SD_beta
   )
 
 # View(df_obs_overview)

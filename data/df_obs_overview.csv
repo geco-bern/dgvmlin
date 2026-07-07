@@ -1,17 +1,17 @@
-Variable,study,beta,sd_beta
-NPP,Hovenden et al. (2019),0.17,0.0326530612244898
-NPP,Norby et al. (2005),0.56,0.05612244897959184
-NPP,Walker et al. (2019),0.49,0.12244897959183673
-Cveg,Hungate et al. (2013),0.33,0.09693877551020408
-Cveg,Terrer et al. (2019),0.22,0.05612244897959184
-Cwood,Hattenschwiler et al. (1997),0.23,0.09237604307034013
-Cwood,Hattenschwiler et al. (1997),0.39,0.09237604307034013
-Cwood,Hattenschwiler et al. (1997),0.23,0.09237604307034013
-Cwood,Hattenschwiler et al. (1997),0.39,0.09237604307034013
-NPProot,Nie et al. (2013),0.56,0.4285714285714286
-NPProot,Nowak et al. (2004),0.92,0.4285714285714286
-NPProot,Nowak et al. (2004),0.18,0.4285714285714286
-Croot,Iversen et al. (2012),1.4,0.6122448979591837
-Croot,Evans et al. (2014),-0.31,0.5612244897959184
-NPProot,Baig et al. (2015),0.5,0.11224489795918367
-Croot,Nie et al. (2013),0.43,0.4285714285714286
+Variable (here),Variable (W21),Study,Study site,Species,beta,CI95(beta),SD(beta)
+NPP,BP,Hovenden et al. (2019),FACE synthesis,grassland,0.17,0.064,0.0326530612244898
+NPP,BP,Norby et al. (2005),FACE synthesis,temperate forest,0.56,0.11,0.05612244897959184
+NPP,BP,Walker et al. (2019),FACE metaNAanalysis,temperate forest,0.49,0.24,0.12244897959183673
+Cveg,C_veg,Hungate et al. (2013),FACE KSCO,Oak scrub,0.33,0.19,0.09693877551020408
+Cveg,C_veg,Terrer et al. (2019),"FACE metaNAanalysis, upscaled",global,0.22,0.11,0.05612244897959184
+Cwood,C_wood,Hattenschwiler et al. (1997),eCO2 spring Laiatico,Quercus ilex,0.23,NA,0.09237604307034013
+Cwood,C_wood,Hattenschwiler et al. (1997),eCO2 spring Rapolano,Quercus ilex,0.39,NA,0.09237604307034013
+Cwood,C_wood,Hattenschwiler et al. (1997),eCO2 spring Laiatico,Quercus ilex,0.23,NA,0.09237604307034013
+Cwood,C_wood,Hattenschwiler et al. (1997),eCO2 spring Rapolano,Quercus ilex,0.39,NA,0.09237604307034013
+NPProot,BP_fine-root,Nie et al. (2013),eCO2 meta-analysis,Multi-biome,0.56,NA,0.4285714285714286
+NPProot,BP_fine-root,Nowak et al. (2004),eCO2 meta-analysis,Forest,0.92,NA,0.4285714285714286
+NPProot,BP_fine-root,Nowak et al. (2004),eCO2 meta-analysis,Grassland,0.18,NA,0.4285714285714286
+Croot,C_fine-root,Iversen et al. (2012),"FACE ORNL, 0-90cm",Liquidambar styraciflua,1.4,1.2,0.6122448979591837
+Croot,C_veg_bg,Evans et al. (2014),FACE NDFF,Desert,-0.31,1.1,0.5612244897959184
+NPProot,C_veg_bg_inc,Baig et al. (2015),"eCO2 meta-analysis, factorial studies",Multi-biome,0.5,0.22,0.11224489795918367
+Croot,C_veg_root,Nie et al. (2013),eCO2 meta-analysis,Multi-biome,0.43,NA,0.4285714285714286

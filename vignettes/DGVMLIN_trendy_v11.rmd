@@ -412,7 +412,7 @@ gdf <- gdf %>%
 
 Regrid all model outputs to a common 1x1 deg grid. Note: this takes quite long, therefore reading from file if available.
 ```{r compile gdf}
-filnam <- here("data/gdf.rds")
+filnam <- here("data/gdf_20260429.rds")
 
 if (!file.exists(filnam)){
   
@@ -504,7 +504,6 @@ summary_table <- tibble(
   )
 )
 
-
 # gdf <- gdf %>% 
 #   left_join(
 #     summary_table,
@@ -554,15 +553,15 @@ display_titles <- c(
   "VISIT"      = "VISIT",
   "ISBA-CTRIP" = "ISBA-CTRIP",
   "ORCHIDEE"   = "ORCHIDEE (C-N)",
-  "CLM5.0"     = "CLM5.0(C-N)",
-  "DLEM"       = "DLEM(C-N)",
-  "ISAM"       = "ISAM(C-N)",
-  "JSBACH"     = "JSBACH(C-N)",
-  "JULES"      = "JULES(C-N)",
-  "LPX-Bern"   = "LPX-Bern(C-N)",
-  "SDGVM"      = "SDGVM(C-N)(Veg.D.)",
-  "CABLE-POP"  = "CABLE-POP(C-N)(Veg.D.)",
-  "LPJ-GUESS"  = "LPJ-GUESS(C-N)(Veg.D.)"
+  "CLM5.0"     = "CLM5.0 (C-N)",
+  "DLEM"       = "DLEM (C-N)",
+  "ISAM"       = "ISAM (C-N)",
+  "JSBACH"     = "JSBACH (C-N)",
+  "JULES"      = "JULES (C-N)",
+  "LPX-Bern"   = "LPX-Bern (C-N)",
+  "SDGVM"      = "SDGVM (C-N, Veg.D.)",
+  "CABLE-POP"  = "CABLE-POP (C-N, Veg.D.)",
+  "LPJ-GUESS"  = "LPJ-GUESS (C-N, Veg.D.)"
 )
 
 # 2. Ensure gdf$modl is a factor with this specific order
@@ -572,7 +571,6 @@ gdf <- gdf %>% arrange(modl)
 
 model_order_with_all <- c("ALL",model_order)
 display_titles_with_all <- c("ALL"="ALL",display_titles)
-
 ```
 
 
@@ -993,7 +991,7 @@ gg3_cveg_star_npp
 
 #### By model
 
-```{r npp_cveg_bymodl, fig.height=12, out.width="100%"}
+```{r npp_cvegstar_bymodl, fig.height=12, out.width="100%"}
 set.seed(1982)
 
 gdf_sampled <- gdf %>%
@@ -1333,7 +1331,7 @@ gdf_sampled <- gdf %>%
       mutate(modl = "ALL")
   ) %>%
   mutate(l_cveg_npp = dcveg / dnpp)%>%
-  dplyr::filter(!is.nan(dnpp), !is.nan(dcveg), !is.infinite(dnpp), !is.infinite(dcveg),l_cveg_npp>-1000000,l_cveg_npp<1000000) # the infinite filter does not work, no idea why
+  dplyr::filter(!is.nan(dnpp), !is.nan(dcveg), !is.infinite(dnpp), !is.infinite(dcveg), l_cveg_npp>-1000000,l_cveg_npp<1000000) # the infinite filter does not work, no idea why
 gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 
 # density scatter
