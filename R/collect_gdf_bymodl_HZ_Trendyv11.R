@@ -6,11 +6,12 @@ collect_gdf_bymodl <- function(
     filn_croot_init, filn_croot_final,
     filn_cwood_init, filn_cwood_final,
     filn_npp_init, filn_npp_final,
-    filn_csoil_change, filn_cveg_change,
+    filn_csoil_change, filn_cveg_change,filn_cWood_change,filn_cRoot_change,
     filn_gpp_init, filn_gpp_final,
     filn_rh_init, filn_rh_final,
     filn_cLitter_init, filn_cLitter_final,
-    filn_landCoverFrac
+    filn_landCoverFrac,
+    filn_fRootLitter_final,filn_fWoodLitter_final
 ){
 
   rlang::inform(paste("Collecting outputs for", modl))
@@ -121,6 +122,20 @@ collect_gdf_bymodl <- function(
         dplyr::rename(cveg_change = myvar),
       by = c("lon", "lat")
     ) %>%
+    left_join(
+      my_read_nc_onefile(dir, filn_cWood_change, "cWood") %>%
+        tidyr::drop_na(myvar) %>%
+        dplyr::rename(cWood_change = myvar),
+      
+      by = c("lon", "lat")
+    ) %>%
+    left_join(
+      my_read_nc_onefile(dir, filn_cRoot_change, "cRoot") %>%
+        tidyr::drop_na(myvar) %>%
+        dplyr::rename(cRoot_change = myvar),
+      
+      by = c("lon", "lat")
+    )  %>%
 
     # GPP
     left_join(
@@ -183,6 +198,23 @@ collect_gdf_bymodl <- function(
 
       by = c("lon", "lat")
     ) %>%
+    
+    # fRootLitter and fWoodLitter
+    
+    left_join(
+      my_read_nc_onefile(dir, filn_fRootLitter_final, "fRootLitter") %>%
+        tidyr::drop_na(myvar) %>%
+        dplyr::rename(fRootLitter = myvar)%>%
+      mutate(fRootLitter = fRootLitter * 60*60*24*365),
+      by = c("lon", "lat")
+    ) %>%
+    left_join(
+      my_read_nc_onefile(dir, filn_fWoodLitter_final, "fWoodLitter") %>%
+        tidyr::drop_na(myvar) %>%
+        dplyr::rename(fWoodLitter = myvar)%>%
+        mutate(fWoodLitter = fWoodLitter * 60*60*24*365),
+      by = c("lon", "lat")
+    ) %>%
 
     # add model name as column
     mutate(modl = modl)
@@ -190,12 +222,15 @@ collect_gdf_bymodl <- function(
   return(gdf)
 }
 
+# This special function is for cWood Cleaf and Croot, becasue some models do not have these variables, NA values need to be filled. We sometime make fake files for the same purpose. but anyway good to check whether the nc file exist. 
 my_read_nc_onefile <- function(use_dir, use_filn, use_varnam){
   path <- paste0(use_dir, "/data/", use_filn, ".nc")
+  
   if (file.exists(path)){
     read_nc_onefile(path, ignore_time = TRUE, varnam = use_varnam) %>%
       nc_to_df(varnam = use_varnam)
   } else {
+    rlang::inform(paste0(path,' does not exist, values set to NA, for var',use_varnam))
     tibble(lon = NA, lat = NA, myvar = NA)
   }
 }

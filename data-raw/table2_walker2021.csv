@@ -1,0 +1,84 @@
+﻿process,co2,study,variable,study_site,species,Plotted,interpret_var,start_year,end_year,ambient_co2,elevated_co2,variable_response_ratio,95CI_var,co2_response_ratio,95_CI_co2,beta,95CI_beta
+BP,eCO2,Korner et al. (2005),BAI,FACE Swiss canopy crane,Fagus ,BP,NPPwood,2001,2003,380,550,13,94,45,5.6,0.32,2.2
+BP,eCO2,Klein et al. (2016),BAI,FACE Swiss spruce,Picea abies,BP,NPPwood,NA,NA,420,554,-8,17,32,5,-0.3,0.67
+BP,eCO2,Norby (1999),BAI,eCO2 spring Rapolano,Quercus ilex,BP,NPPwood,NA,NA,345,650,19,NA,88,NA,0.27,NA
+BP,eCO2,Hovenden et al. (2019),BP,FACE synthesis,grassland,BP,NPP,NA,NA,375,618,9,3.4,65,5.8,0.17,0.064
+BP,eCO2,Norby et al. (2005),BP,FACE synthesis,temperate forest,BP,NPP,NA,NA,377,546,23,4,45,5.6,0.56,0.11
+BP,eCO2,Walker et al. (2019),BP,FACE metaNAanalysis,temperate forest,BP,NPP,NA,NA,377,576,23,12,53,5.7,0.49,0.24
+BP,eCO2,Ellsworth et al. (2017),BP_abg,FACE EucFACE,Eucalyptus tereticornis ,BP,ANPP,NA,NA,399,549,-8,17,38,5.3,-0.26,0.58
+BP,iCO2,Brienen et al. (2015),BP_wood,Inventory,Amazon,BP,NPPwood,1983,2011,342.01,389.79,17,6.8,14,2.2,1.2,0.48
+BP,iCO2,Hubau et al. (2020),BP_wood,Inventory,Tropical Africa ,BP,NPPwood,1983,2014,342.01,396.7,11,10,16,2.2,0.69,0.63
+BP,iCO2,Hubau et al. (2020),BP_wood,"Inventory, CO2 attribution",Tropical Africa ,BP,NPPwood,1983,2014,342.01,396.7,8.3,16,16,2.2,0.54,0.97
+BP,iCO2,Yu et al. (2019),BP_wood_abv,Inventory,Panbiome,BP,ANPPwood,1990,2008,353.2,384.15,8.2,9.4,8.8,2.1,0.94,1.1
+BP,iCO2,Voelker et al. (2006),TRW,TreeNAring,"Quercus Pinus, 50th year",BP,NPPwood,1879,2002,289.77,371.93,32,NA,28,NA,1.1,NA
+BP,eCO2,Bader et al. (2013),TRW,FACE Swiss canopy crane,Fagus,BP,NPPwood,NA,NA,380,550,-3.5,51,45,5.6,-0.097,1.4
+BP,eCO2,Bader et al. (2013),TRW,FACE Swiss canopy crane,Quercus,BP,NPPwood,NA,NA,380,550,22,75,45,5.6,0.55,1.7
+BP,iCO2,Penuelas et al. (2011),TRW,TreeNAring synthesis,forests,BP,NPPwood,1965,2005,319.56,378.23,3.9,14,18,2.4,0.23,0.8
+NEP,iCO2,Chave et al. (2008),C_veg,Inventory,tropical forest,C_veg,Cveg,1985,2005,344.99,378.23,2.8,1.9,9.6,2.2,0.3,0.21
+NEP,iCO2,Friedlingstein et al. (2019),C_veg,"Carbon budget, lower estimate",global,C_veg,Cveg,1959,2018,315.66,407.38,43,NA,29,NA,1.4,NA
+NEP,iCO2,Friedlingstein et al. (2019),C_veg,"Carbon budget, upper estimate",global,C_veg,Cveg,1959,2018,315.66,407.38,27,NA,29,NA,0.93,NA
+NEP,eCO2,Hungate et al. (2013),C_veg,FACE KSCO,Oak scrub,C_veg,Cveg,NA,NA,380,700,23,14,84,5.8,0.33,0.19
+NEP,iCO2,Pan et al. (2011),C_veg,"Inventory, upscaled",global forests,C_veg,Cveg,1990,1999,353.2,367.06,7.7,NA,3.9,NA,1.9,NA
+NEP,iCO2,Pretzsch et al. (2014),C_veg,Inventory,Fagus sylvatica,C_veg,Cveg,1960,2000,316.57,368.23,7,NA,16,NA,0.45,NA
+NEP,iCO2,Pretzsch et al. (2014),C_veg,Inventory,Picea abies,C_veg,Cveg,1960,2000,316.57,368.23,6,NA,16,NA,0.39,NA
+NEP,eCO2,Terrer et al. (2019),C_veg,"FACE metaNAanalysis, upscaled",global,C_veg,Cveg,NA,NA,375,625,12,6,67,5.8,0.22,0.11
+NEP,eCO2,Hattenschwiler et al. (1997),C_wood,eCO2 spring Laiatico,Quercus ilex,C_veg,Cwood,30,NA,345,650,16,NA,88,NA,0.23,NA
+NEP,eCO2,Hattenschwiler et al. (1997),C_wood,eCO2 spring Rapolano,Quercus ilex,C_veg,Cwood,30,NA,345,650,28,NA,88,NA,0.39,NA
+NEP,iCO2,Hubau et al. (2020),C_wood,Inventory,Tropical Amazon ,C_veg,Cwood,1983,2014,342.01,396.7,12,NA,16,2.2,0.77,NA
+NEP,iCO2,Brienen et al. (2015),C_wood_abg,Inventory,Tropical Africa ,C_veg,Cwood_ag,1983,2011,342.01,389.79,7.5,NA,14,NA,0.55,NA
+NEP,iCO2,McMahon et al. (2011),C_wood_abg,"Inventory, 100 years",temperate forest,C_veg,Cwood_ag,1987,2005,348.17,378.23,18,3.6,8.6,2.1,2,0.59
+NEP,iCO2,McMahon et al. (2011),C_wood_abg,"Inventory, 50 years",temperate forest,C_veg,Cwood_ag,1987,2005,348.17,378.23,27,5.7,8.6,2.1,2.9,0.87
+NEP,iCO2,Qie et al. (2017),C_wood_abg,Inventory,"Borneo, intact plots",C_veg,Cwood_ag,1985,2010,344.99,387.99,5.8,3.4,12,2.2,0.48,0.28
+NEP,iCO2,Yu et al. (2019),C_wood_abv,Inventory,Panbiome,C_veg,Cwood_ag,1990,2008,353.2,384.15,7.1,2.4,8.8,2.1,0.82,0.32
+GPP,iCO2,Ehlers et al. (2015),Asat,Herbarium 2H isotopomers model,"Brassica, Sphagnum, Eriophorum",GPP,Asat,1890,2012,293.46,391.88,35,,34,,1,
+GPP,eCO2,Ainsworth & Long (2005),Asat,FACE meta-analysis,Temperate,GPP,Asat,,,380,550,28,4.9,45,5.6,0.68,0.13
+GPP,iCO2,Campbell et al. (2017),GPP,Ice-core OCS,Global,GPP,GPP,1900,2013,296.57,394.6,31,5,33,2.8,0.95,0.15
+GPP,iCO2,Cheng et al. (2017),GPP,RS ET WUE model,Global best estimate,GPP,GPP,1982,2011,340.47,389.79,15,6.2,14,2.2,1.1,0.43
+GPP,iCO2,Ciais et al. (2012),GPP,Ice-core 18O,Global,GPP,GPP,1760,2010,276.58,387.99,54,120,40,3.1,1.3,2.3
+GPP,iCO2,Fernandez-Martinez et al. (2017),GPP,Flux-tower,Temperate,GPP,GPP,1992,2013,355.4,394.6,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Fernandez-Martinez et al. (2017),GPP,"Flux-tower, CO2 attribution",Temperate,GPP,GPP,1992,2013,355.4,394.6,13,4.5,11,2.1,1.2,0.44
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Flux-tower upscaled method 1,Global,GPP,GPP,2000,2014,368.23,396.7,-2.8,2.1,7.7,2,-0.39,0.3
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Flux-tower upscaled method 2,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Flux-tower upscaled method 3,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,RS fAPAR LUE model method 1,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,RS fAPAR LUE model method 2,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,RS fAPAR LUE model method 3,Multi-biome,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,RS fAPAR LUE model method 4,Multi-biome,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,RS fAPAR LUE model method 5,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Process model 1,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Process model 2,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Vegetation index method 1,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Vegetation index method 2,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Vegetation index method 3,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Sun et al. (2019),GPP,Vegetation index method 4,Global,GPP,GPP,2000,2014,368.23,396.7,NA,NA,NA,NA,NA,NA
+GPP,iCO2_CO2att.,Ueyama et al. (2020),GPP,"Flux-tower constrained model, CO2 attribution",Multi-biome,GPP,GPP,1990,2014,353.2,396.7,6,0.3,12,2.1,0.5,0.086
+BP,eCO2,Nie et al. (2013),BP_fine-root,eCO2 meta-analysis,Multi-biome,,NPProot,,,360,645,39,,79,,0.56,
+BP,eCO2,Nowak et al. (2004),BP_fine-root,eCO2 meta-analysis,Forest,,NPProot,,,380,675,70,,78,,0.92,
+BP,eCO2,Nowak et al. (2004),BP_fine-root,eCO2 meta-analysis,Grassland,,NPProot,,,380,675,11,,78,,0.18,
+NEP,eCO2,Iversen et al. (2012),C_fine-root,"FACE ORNL, 0-90cm",Liquidambar styraciflua,,Croot,,,383,533,57,61,39,5.5,1.4,1.2
+NEP,eCO2,Evans et al. (2014),C_veg_bg,FACE NDFF,Desert,,Croot,,,375,513,-9.4,32,37,5.6,-0.31,1.1
+NEP,eCO2,Baig et al. (2015),C_veg_bg_inc,"eCO2 meta-analysis, factorial studies",Multi-biome,,NPProot,,,362.5,665,35,18,83,6.1,0.5,0.22
+NEP,eCO2,Nie et al. (2013),C_veg_root,eCO2 meta-analysis,Multi-biome,,Croot,,,360,645,29,,79,,0.43,
+BP,eCO2,Ellsworth et al. (2017),BP_abg,FACE EucFACE,Eucalyptus tereticornis,BP,ANPP,,,399,549,-8,17,38,5.3,-0.26,0.58
+BP,iCO2,Brienen et al. (2015),BP_wood,Inventory,Amazon,BP,NPPwood,1983,2011,342.01,389.79,17,6.8,14,2.2,1.2,0.48
+BP,iCO2,Hubau et al. (2020),BP_wood,Inventory,Tropical Africa,BP,NPPwood,1983,2014,342.01,396.7,11,10,16,2.2,0.69,0.63
+BP,iCO2_CO2att.,Hubau et al. (2020),BP_wood,"Inventory, CO2 attribution",Tropical Africa,BP,NPPwood,1983,2014,342.01,396.7,8.3,16,16,2.2,0.54,0.97
+BP,iCO2,Yu et al. (2019),BP_wood_abv,Inventory,Boreal,,ANPPwood,2001,2008,369.79,384.15,NA,NA,NA,NA,NA,NA
+BP,iCO2,Yu et al. (2019),BP_wood_abv,Inventory,Panbiome,BP,ANPPwood,1990,2008,353.2,384.15,8.2,9.4,8.8,2.1,0.94,1.1
+BP,iCO2,Yu et al. (2019),BP_wood_abv,Inventory,Temperate,,ANPPwood,1990,2004,353.2,376.12,NA,NA,NA,NA,NA,NA
+BP,iCO2,Yu et al. (2019),BP_wood_abv,Inventory,Tropical,,ANPPwood,1994,2009,357.62,385.81,NA,NA,NA,NA,NA,NA
+NEP,eCO2,Evans et al. (2014),C_veg_abg,FACE NDFF,Desert,,Cveg_ag,,,375,513,-13,30,37,5.6,-0.44,1.1
+NEP,eCO2,Baig et al. (2015),C_veg_abg_inc,"eCO2 meta-analysis, factorial studies",Multi-biome,,ANPP,,,362.5,665,21,11,83,6.1,0.32,0.15
+NEP,eCO2,Hattenschwiler et al. (1997),C_wood,eCO2 spring Laiatico,Quercus ilex,C_veg,Cwood,30,,345,650,16,,88,,0.23,
+NEP,eCO2,Hattenschwiler et al. (1997),C_wood,eCO2 spring Rapolano,Quercus ilex,C_veg,Cwood,30,,345,650,28,,88,,0.39,
+NEP,iCO2,Hubau et al. (2020),C_wood,Inventory,Tropical Amazon,C_veg,Cwood,1983,2014,342.01,396.7,12,,16,2.2,0.77,
+NEP,iCO2,Brienen et al. (2015),C_wood_abg,Inventory,Tropical Africa,C_veg,Cwood_ag,1983,2011,342.01,389.79,7.5,,14,,0.55,
+NEP,iCO2,McMahon et al. (2011),C_wood_abg,"Inventory, 100 years",Temperate forest,C_veg,Cwood_ag,1987,2005,348.17,378.23,18,3.6,8.6,2.1,2,0.59
+NEP,iCO2,McMahon et al. (2011),C_wood_abg,"Inventory, 50 years",Temperate forest,C_veg,Cwood_ag,1987,2005,348.17,378.23,27,5.7,8.6,2.1,2.9,0.87
+NEP,iCO2,Qie et al. (2017),C_wood_abg,Inventory,"Borneo, intact plots",C_veg,Cwood_ag,1985,2010,344.99,387.99,5.8,3.4,12,2.2,0.48,0.28
+NEP,iCO2,Yu et al. (2019),C_wood_abv,Inventory,Boreal,,Cwood_ag,2001,2008,369.79,384.15,NA,NA,NA,NA,NA,NA
+NEP,iCO2,Yu et al. (2019),C_wood_abv,Inventory,Panbiome,C_veg,Cwood_ag,1990,2008,353.2,384.15,7.1,2.4,8.8,2.1,0.82,0.32
+NEP,iCO2,Yu et al. (2019),C_wood_abv,Inventory,Temperate,,Cwood_ag,1990,2004,353.2,376.12,NA,NA,NA,NA,NA,NA
+NEP,iCO2,Yu et al. (2019),C_wood_abv,Inventory,Tropical,,Cwood_ag,1994,2009,357.62,385.81,NA,NA,NA,NA,NA,NA
+NEP,iCO2,Brienen et al. (2015),C_wood_inc,Inventory,Tropical Amazon,C_veg_inc,NPPwood,1983,2011,342.01,389.79,NA,NA,NA,NA,NA,NA
+NEP,iCO2,Hubau et al. (2020),C_wood_inc,Inventory,Tropical Africa,C_veg_inc,NPPwood,1983,2014,342.01,396.7,NA,NA,NA,NA,NA,NA

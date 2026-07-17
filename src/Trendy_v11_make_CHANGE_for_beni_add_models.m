@@ -26,10 +26,12 @@ close all
 %Model_list={'DLEM';'IBIS';'LPX-Bern';'YIBs';'SDGVM'};
 %Model_list={'OCN'};
 Model_list={'CABLE-POP';'CLASSIC';'CLM5.0';'DLEM';'ISAM';'IBIS';'LPX-Bern';'VISIT';'SDGVM';'ISBA-CTRIP';'JSBACH';'JULES';'LPJ';'LPJ-GUESS';'VISIT-NIES';'ORCHIDEE'};
+Model_list={'JULES'};
 
 
 %Model_list={'LPJ-GUESS'};%In case you want one model only
 Variable_list={'cVeg','gpp','npp','cSoil','cRoot'};
+Variable_list={'cWood'};
 
 
 % file cVeg_Lmon_HadGEM2-ES_esmFixClim1_r1i1p1_185912-188411.nc is broken,
@@ -39,7 +41,7 @@ Variable_list={'cVeg','gpp','npp','cSoil','cRoot'};
 %% read maps
 
 %cd /Users/echo/E/RA/trendy_v9
-cd H:\Trendy_v11_data_temporary
+cd J:\Trendy_v11_data_temporary
 
 % All the nc files downloaded from CMIP5 database stored here
 % To download input file, go to https://esgf-index1.ceda.ac.uk/search/cmip5-ceda/

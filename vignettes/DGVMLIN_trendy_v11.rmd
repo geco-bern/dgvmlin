@@ -30,6 +30,11 @@ source(here("R/regrid_df.R"))
 #setwd('F:/Oxford/Chapter_four/dgvmlin')
 # If you only want to draw figures, only do this: load(here("data/gdf_Trendyv11_202406.rda")) 
 ```
+## If you just want to reproduce our figures
+
+Step 1: run library and source trunk
+Step 2: At regrid step, read in "data/gdf.rds"
+Step 3: Run **Model meta info** and **Plot relationships** then you are free to jump to other figures drawing sections
 
 ## Approach
 
@@ -159,6 +164,7 @@ df <- filnams %>%
          filn_cVeg_change  = paste0(filn_cVeg, "_CHANGE"),
          filn_cLeaf_change = paste0(filn_cLeaf, "_CHANGE"),
          filn_cWood_change = paste0(filn_cWood, "_CHANGE"),
+         filn_cRoot_change = paste0(filn_cRoot, "_CHANGE"),
                   
          filn_npp_init  = paste0(filn_npp, "_INIT_MEAN"),
          filn_npp_final = paste0(filn_npp, "_FINAL_MEAN"),
@@ -170,13 +176,23 @@ df <- filnams %>%
          filn_rh_final = paste0(filn_rh, "_FINAL_MEAN"),
          
          filn_cLitter_init  = paste0(filn_cLitter, "_INIT_MEAN"),
-         filn_cLitter_final = paste0(filn_cLitter, "_FINAL_MEAN")
+         filn_cLitter_final = paste0(filn_cLitter, "_FINAL_MEAN"),
+         
+         filn_fRootLitter_final = paste0(filn_fRootLitter, "_FINAL_MEAN"),
+         filn_fWoodLitter_final = paste0(filn_fWoodLitter, "_FINAL_MEAN")
          )
+
+# Note that the above codes will report the lack of data and fill them with NA. Don't worry. Our analysis does not need quite all variables.
+
+
+
 ```
 
 ## Collect data
 
 ... into tidy data frame
+
+Please note that Cwood_change Croot_change fRootLitter and fWoodLitter are for sensitivity test only. Only Jules have these things. For other models, the codes will warn you that these files are missing
 
 ```{r collect_data}
 gdf <- purrr::map(
@@ -207,6 +223,9 @@ gdf <- purrr::map(
 
     df$filn_cSoil_change[.],
     df$filn_cVeg_change[.],
+    df$filn_cWood_change[.],
+    df$filn_cRoot_change[.],
+
     
     df$filn_gpp_init[.],
     df$filn_gpp_final[.],
@@ -217,7 +236,10 @@ gdf <- purrr::map(
     df$filn_cLitter_init[.],
     df$filn_cLitter_final[.],
     
-    df$filn_landCoverFrac[.]
+    df$filn_landCoverFrac[.],
+    df$filn_fRootLitter_final[.],
+    df$filn_fWoodLitter_final[.]
+    
     )) %>% 
   
   bind_rows() %>%
@@ -248,11 +270,20 @@ desert_filter <- function(df){
     ))
 }
 
+desert_filter_wide <- function(df){
+  df %>% 
+    mutate(across(
+      .cols = -c("lon", "lat"),
+      .fns = ~ ifelse(is.na(cveg_init), NA, .)
+    ))
+}
+
 
 gdf <- gdf %>% 
   mutate(
     data = map(data, ~remove_nonvegetated(.)),
-    data = map(data, ~desert_filter(.))
+    data = map(data, ~desert_filter(.)) # so we deal with NA on the cveg_init column first
+ #   data = map(data, ~desert_filter_wide(.))  # if cveg_init is NA, everything else changed to NA. We do this in two steps so that we can see the effect of this processing sperately. 
     )
 ```
 
@@ -297,7 +328,11 @@ get_steadystate <- function(df){
 
     mutate(
       csoil_change = csoil_change / 10,
-      cveg_change = cveg_change / 10
+      cveg_change = cveg_change / 10,
+      cRoot_change = cRoot_change/10,
+       cWood_change = cWood_change/10, # because the change was calculated as the difference in the last 10 years
+      npp_root = cRoot_change + fRootLitter,
+      npp_wood = cWood_change + fWoodLitter
       ) %>%
 
     # applying clean function
@@ -311,6 +346,16 @@ get_steadystate <- function(df){
         c_t = cveg_final,
         dcdt = cveg_change,
         npp = npp_final
+        ),
+      croot_star_final = calc_steady_state(
+        c_t = croot_final,
+        dcdt = cRoot_change,
+        npp = npp_root
+        ),
+       cwood_star_final = calc_steady_state(
+        c_t = cwood_final,
+        dcdt = cWood_change,
+        npp = npp_wood
         )
       )
 }
@@ -331,7 +376,9 @@ get_deltas <- function(df){
            dcleaf= (cleaf_final - cleaf_init)/cleaf_init,
            dcveg_star = (cveg_star_final - cveg_init)/cveg_init,
            dcroot = (croot_final - croot_init)/croot_init,
-           dcwood = (cwood_final - cwood_init)/cwood_init
+           dcwood = (cwood_final - cwood_init)/cwood_init,
+           dcroot_star = (croot_star_final - croot_init)/croot_init,
+           dcwood_star = (cwood_star_final - cwood_init)/cwood_init
            ) %>%
     mutate(l_npp_gpp = dnpp / dgpp,
            l_croot_cveg = dcroot / dcveg,
@@ -361,11 +408,11 @@ gdf <- gdf %>%
     )
 ```
 
-## Regrid
+## Regrid -- ENTER HERE FOR REPRODUCING FIGURES
 
 Regrid all model outputs to a common 1x1 deg grid. Note: this takes quite long, therefore reading from file if available.
 ```{r compile gdf}
-filnam <- here("data/gdf.rds")
+filnam <- here("data/gdf_20260429.rds")
 
 if (!file.exists(filnam)){
   
@@ -400,62 +447,62 @@ if (!file.exists(filnam)){
 summary_table <- tibble(
   modl = c(
     'ALL',
+    'VISIT-NIES',
     'CLASSIC',
     'IBIS',
     'LPJ',
-    'ORCHIDEE',
     'VISIT',
     'ISBA-CTRIP',
-    'CABLE-POP',
+    'ORCHIDEE',
     'CLM5.0',
     'DLEM',
     'ISAM',
     'JSBACH',
     'JULES',
-    'LPJ-GUESS',
     'LPX-Bern',
-    'VISIT-NIES',
-    'SDGVM'
-    ),
+    'SDGVM',
+    'CABLE-POP',
+    'LPJ-GUESS'
+  ),
   cn_coupled = c(
     NA,
-    FALSE,
-    FALSE,
-    FALSE,
-    TRUE,
-    FALSE,
-    FALSE,
-    TRUE,
-    TRUE,
-    TRUE,
-    TRUE,
-    TRUE,
-    TRUE,
-    TRUE,
-    TRUE,
-    FALSE,
-    TRUE
-    ),
+    FALSE, # VISIT-NIES
+    FALSE, # CLASSIC
+    FALSE, # IBIS
+    FALSE, # LPJ
+    FALSE, # VISIT
+    FALSE, # ISBA-CTRIP
+    TRUE,  # ORCHIDEE
+    TRUE,  # CLM5.0
+    TRUE,  # DLEM
+    TRUE,  # ISAM
+    TRUE,  # JSBACH
+    TRUE,  # JULES
+    TRUE,  # LPX-Bern
+    TRUE,  # SDGVM
+    TRUE,  # CABLE-POP
+    TRUE   # LPJ-GUESS
+  ),
   veg_demo = c(
     NA,
-    FALSE,
-    FALSE,
-    FALSE,
-    FALSE,
-    FALSE,
-    TRUE,
-    TRUE,
-    FALSE,
-    FALSE,
-    FALSE,
-    FALSE,
-    FALSE,
-    TRUE,
-    FALSE,
-    FALSE,
-    TRUE
-    )
+    FALSE, # VISIT-NIES
+    FALSE, # CLASSIC
+    FALSE, # IBIS
+    FALSE, # LPJ
+    FALSE, # VISIT
+    FALSE, # ISBA-CTRIP
+    FALSE, # ORCHIDEE
+    FALSE, # CLM5.0
+    FALSE, # DLEM
+    FALSE, # ISAM
+    FALSE, # JSBACH
+    FALSE, # JULES
+    FALSE, # LPX-Bern
+    TRUE,  # SDGVM
+    TRUE,  # CABLE-POP
+    TRUE   # LPJ-GUESS
   )
+)
 
 # gdf <- gdf %>% 
 #   left_join(
@@ -490,6 +537,40 @@ coast <- rnaturalearth::ne_coastline(
   scale = 110, 
   returnclass = "sf"
   )
+
+# 1. Define your custom order
+model_order <- c(
+  "VISIT-NIES", "CLASSIC", "IBIS", "LPJ", "VISIT", 
+  "ISBA-CTRIP", "ORCHIDEE", "CLM5.0", "DLEM", "ISAM", 
+  "JSBACH", "JULES", "LPX-Bern", "SDGVM", "CABLE-POP", "LPJ-GUESS"
+)
+
+display_titles <- c(
+  "VISIT-NIES" = "VISIT-NIES",
+  "CLASSIC"    = "CLASSIC",
+  "IBIS"       = "IBIS",
+  "LPJ"        = "LPJ",
+  "VISIT"      = "VISIT",
+  "ISBA-CTRIP" = "ISBA-CTRIP",
+  "ORCHIDEE"   = "ORCHIDEE (C-N)",
+  "CLM5.0"     = "CLM5.0 (C-N)",
+  "DLEM"       = "DLEM (C-N)",
+  "ISAM"       = "ISAM (C-N)",
+  "JSBACH"     = "JSBACH (C-N)",
+  "JULES"      = "JULES (C-N)",
+  "LPX-Bern"   = "LPX-Bern (C-N)",
+  "SDGVM"      = "SDGVM (C-N, Veg.D.)",
+  "CABLE-POP"  = "CABLE-POP (C-N, Veg.D.)",
+  "LPJ-GUESS"  = "LPJ-GUESS (C-N, Veg.D.)"
+)
+
+# 2. Ensure gdf$modl is a factor with this specific order
+
+gdf$modl <- factor(gdf$modl, levels = model_order)
+gdf <- gdf %>% arrange(modl)
+
+model_order_with_all <- c("ALL",model_order)
+display_titles_with_all <- c("ALL"="ALL",display_titles)
 ```
 
 
@@ -534,7 +615,7 @@ labels <- gdf_sampled %>%
   mutate(l_larger = l_npp_gpp > 1) %>%
   summarise(
     n_recs = n(),
-    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 3),
     perc_smaller = 1 - perc_larger
     )
 
@@ -594,7 +675,7 @@ gdf_sampled <- gdf %>%
     !is.nan(dnpp), !is.nan(dgpp), 
     !is.infinite(dnpp), !is.infinite(dgpp),
     !is.nan(l_npp_gpp), !is.infinite(l_npp_gpp))
-
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 # density scatter
 gdf_sampled %>%
   ggplot(aes(x = dgpp, y = dnpp)) +
@@ -609,7 +690,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, "GPP/GPP")),
     y = expression(paste(Delta, "NPP/NPP"))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -652,7 +733,7 @@ gdf_sampled %>%
   labs(
     x = expression(paste(italic(L)[NPP:GPP]))
   ) +
-  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all))
 
 ggsave(here("fig/hist_dnpp_dgpp_trendy_bymodl.pdf"), width = 9, height = 10.5)
 ggsave(here("fig/hist_dnpp_dgpp_trendy_bymodl.png"), width = 9, height = 10.5)
@@ -693,7 +774,7 @@ plot_by_model <- function(use_modl, df){
       reverse = TRUE
       ) +  # suppress individual legends
     labs(
-      title = use_modl
+      title = display_titles[use_modl]
     ) +
     theme_void() +
     theme(
@@ -726,14 +807,21 @@ final_plot <- cowplot::plot_grid(
 
 final_plot
 
+# ggsave(
+#   filename = here("fig/map_dgpp_dnpp_bymodel.pdf"),
+#   height = 10,
+#   width = 10
+#   )
+#  save the old version for revision purpose
+
 ggsave(
-  filename = here("fig/map_dgpp_dnpp_bymodel.pdf"),
+  filename = here("fig/map_dgpp_dnpp_bymodelv2.pdf"),
   height = 10,
   width = 10
   )
 
 ggsave(
-  filename = here("fig/map_dgpp_dnpp_bymodel.png"),
+  filename = here("fig/map_dgpp_dnpp_bymodelv2.png"),
   height = 10,
   width = 10
   )
@@ -747,8 +835,13 @@ gdf_long_1x1deg <- gdf %>%
   group_by(lon, lat) %>% 
   summarise(
     l_npp_gpp_median = median(l_npp_gpp, na.rm = TRUE),
-    l_npp_gpp_sd = sd(l_npp_gpp, na.rm = TRUE)
-  )
+    l_npp_gpp_sd = sd(l_npp_gpp, na.rm = TRUE),
+    nmodels = sum(!is.na(l_npp_gpp)),.groups = "drop"
+  )%>%
+  mutate(across(
+    .cols = -c(lon, lat, nmodels), 
+    .fns = ~ ifelse(nmodels < 8, NA, .x)
+  ))
   
 gg_map_agg <- ggplot() +
   geom_tile(
@@ -766,7 +859,7 @@ gg_map_agg <- ggplot() +
     expand = FALSE
   ) +
   khroma::scale_fill_vik(
-    name = expression(paste(italic(L)[NPP:GPP])),
+    name = expression(atop('Median of',italic(L)[NPP:GPP])),
     limits = c(0.2, 1.8),  
     oob = scales::squish,
     midpoint = 1,
@@ -775,6 +868,33 @@ gg_map_agg <- ggplot() +
   theme_void()
 
 gg_map_agg
+
+gg_map_aggSD <- ggplot() +
+  geom_tile(
+    data = gdf_long_1x1deg,
+    aes(x = lon, y = lat, fill = l_npp_gpp_sd),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_grayC(
+    name = expression(atop('SD of',italic(L)[NPP:GPP])),
+    limits = c(0, 2),
+    oob = scales::squish
+    ) +
+  theme_void()
+
+gg_map_aggSD
+
+
+
 ```
 
 #### Publication Fig. 1
@@ -782,13 +902,15 @@ gg_map_agg
 ```{r}
 cowplot::plot_grid(
   gg3_gpp_npp,
-  gg_map_agg, 
+  gg_map_agg,
+  gg_map_aggSD,
   ncol = 1,
-  labels = c("", "c"),
-  rel_heights = c(1, 0.9)
+  labels = c("", "c", "d"),
+  rel_heights = c(1, 0.9,0.9)
 )
 
-ggsave(filename = here("fig/combined_npp_gpp.pdf"), height = 5, width = 6)
+ggsave(filename = here("fig/fig1_combined_npp_gpp_sd.png"), height = 8, width = 6)
+ggsave(filename = here("fig/fig1_combined_npp_gpp_sd.pdf"), height = 8, width = 6)
 ``` 
 
 ### Cveg* vs NPP 
@@ -829,7 +951,7 @@ labels <- gdf_sampled %>%
   mutate(l_larger = l_cveg_star_npp > 1) %>%
   summarise(
     n_recs = n(),
-    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 3),
     perc_smaller = 1 - perc_larger
     )
 
@@ -863,14 +985,14 @@ gg3_cveg_star_npp <- cowplot::plot_grid(
   labels = c("a", "b")
 )
 
-ggsave(here("fig/cveg_star_npp_trendy_pooled.pdf"), plot = gg3_cveg_star_npp, width = 8, height = 4)
+#ggsave(here("fig/cveg_star_npp_trendy_pooled.pdf"), plot = gg3_cveg_star_npp, width = 8, height = 4)
 
 gg3_cveg_star_npp
 ```
 
 #### By model
 
-```{r npp_cveg_bymodl, fig.height=12, out.width="100%"}
+```{r npp_cvegstar_bymodl, fig.height=12, out.width="100%"}
 set.seed(1982)
 
 gdf_sampled <- gdf %>%
@@ -884,6 +1006,7 @@ gdf_sampled <- gdf %>%
       mutate(modl = "ALL")
   ) %>%
   dplyr::filter(!is.nan(dnpp), !is.nan(dcveg_star), !is.infinite(dnpp), !is.infinite(dcveg_star),l_cveg_star_npp>-1000000,l_cveg_star_npp<1000000) # the infinite filter does not work, no idea why
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 
 # density scatter
 gdf_sampled %>%
@@ -900,7 +1023,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, "NPP/NPP")),
     y = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg]))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -944,7 +1067,7 @@ gdf_sampled %>%
   labs(
     x = expression(paste(italic(L)[Cveg^"*":NPP]))
   ) +
-  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) 
 
 ggsave(here("fig/hist_dcveg_dnpp_trendy_bymodl.pdf"), width = 9, height = 10.5)
 ggsave(here("fig/hist_dcveg_dnpp_trendy_bymodl.png"), width = 9, height = 10.5)
@@ -984,7 +1107,7 @@ plot_by_model <- function(use_modl, df){
       reverse = TRUE
       ) +
     labs(
-      title = use_modl
+      title = display_titles[use_modl]
     ) +
     theme_void() +
     theme(
@@ -994,7 +1117,7 @@ plot_by_model <- function(use_modl, df){
 }
 
 plotlist <- purrr::map(
-  as.list(unique(gdf$modl)),
+  model_order,
   ~ plot_by_model(., gdf)
 )
 
@@ -1038,8 +1161,13 @@ gdf_long_1x1deg <- gdf %>%
   group_by(lon, lat) %>% 
   summarise(
     l_cveg_star_npp_median = median(l_cveg_star_npp, na.rm = TRUE),
-    l_cveg_star_npp_sd = sd(l_cveg_star_npp, na.rm = TRUE)
-  )
+    l_cveg_star_npp_sd = sd(l_cveg_star_npp, na.rm = TRUE),
+    nmodels = sum(!is.na(l_cveg_star_npp)),.groups = "drop"
+  )%>%
+  mutate(across(
+    .cols = -c(lon, lat, nmodels), 
+    .fns = ~ ifelse(nmodels < 8, NA, .x)
+  ))
   
 gg_map_agg <- ggplot() +
   geom_tile(
@@ -1057,7 +1185,7 @@ gg_map_agg <- ggplot() +
     expand = FALSE
   ) +
   khroma::scale_fill_vik(
-    name = expression(paste(italic(L)[Cveg^"*":NPP])),
+    name = expression(atop('Median of',italic(L)[Cveg^"*":NPP])),
     limits = c(0.2, 1.8),  
     midpoint = 1,
     oob = scales::squish,
@@ -1066,6 +1194,31 @@ gg_map_agg <- ggplot() +
   theme_void()
 
 gg_map_agg
+
+
+gg_map_aggSD <- ggplot() +
+  geom_tile(
+    data = gdf_long_1x1deg,
+    aes(x = lon, y = lat, fill = l_cveg_star_npp_sd),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_grayC(
+    name = expression(atop("SD of", italic(L)[Cveg^"*":NPP])),
+    limits = c(0, 2),
+    oob = scales::squish
+  ) +
+  theme_void()
+
+gg_map_aggSD
 ```
 
 #### Publication Fig. 3
@@ -1073,14 +1226,341 @@ gg_map_agg
 ```{r}
 cowplot::plot_grid(
   gg3_cveg_star_npp,
-  gg_map_agg, 
+  gg_map_agg,
+  gg_map_aggSD,
   ncol = 1,
-  labels = c("", "c"),
-  rel_heights = c(1, 0.9)
+  labels = c("", "c", "d"),
+  rel_heights = c(1, 0.9,0.9)
 )
 
-ggsave(filename = here("fig/combined_cvegstar_npp.pdf"), height = 5, width = 6)
+ggsave(filename = here("fig/fig3_combined_cvegstar_npp_sd.png"), height = 8, width = 6)
+ggsave(filename = here("fig/fig3_combined_cvegstar_npp_sd.pdf"), height = 8, width = 6)
 ``` 
+
+
+
+### Cveg vs NPP 
+
+#### All models pooled (similar to the above but no star)
+
+```{r}
+set.seed(1982)
+
+gdf_sampled <- gdf %>%
+  mutate(data = purrr::map(data, ~slice_sample(., n = nsample, replace = TRUE))) %>%
+  unnest(data) %>%
+  mutate(l_cveg_npp = dcveg / dnpp)%>%
+  dplyr::filter(!is.nan(dnpp), !is.nan(dcveg), !is.infinite(dnpp), !is.infinite(dcveg),l_cveg_npp>-1000000,l_cveg_npp<1000000) # the infinite filter does not work, no idea why
+
+# density scatter-plot for pooled data, balanced samples, original grid
+gg_densityscatter <- gdf_sampled %>%
+  ggplot(aes(x = dnpp, y = dcveg)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, "NPP/NPP")),
+    y = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg]))
+  )
+
+# Number for text
+print("Quartiles of L_Cveg:NPP")
+print(format(quantile(gdf_sampled$l_cveg_npp, probs =  c(0.25, 0.5, 0.75), na.rm = TRUE), digits = 3))
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  ungroup()%>%
+  mutate(l_larger = l_cveg_npp > 1) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Density plot
+gg_density <- gdf_sampled %>% 
+  ggplot(aes(x = l_cveg_npp, y = after_stat(density))) +
+  geom_density(fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) + 
+  geom_text(
+    data = labels,
+    aes(x = 0.5, y = Inf, label = perc_smaller),
+    vjust = 1.5) +
+  geom_text(
+    data = labels,
+    aes(x = 1.5, y = Inf, label = perc_larger),
+    vjust = 1.5) +
+  labs(
+    x = expression(paste(italic(L)[Cveg:NPP]))
+  )
+
+# Combine density scatter and density distribution plots
+gg3_cveg_npp <- cowplot::plot_grid(
+  gg_densityscatter, 
+  gg_density, 
+  align = 'h',     # 'v' for vertical alignment
+  axis = 'tb',
+  ncol = 2,
+  labels = c("a", "b")
+)
+
+#ggsave(here("fig/cveg_npp_trendy_pooled.pdf"), plot = gg3_cveg_star_npp, width = 8, height = 4)
+
+gg3_cveg_npp
+```
+
+#### By model
+
+```{r npp_cveg_bymodl, fig.height=12, out.width="100%"}
+set.seed(1982)
+
+gdf_sampled <- gdf %>%
+  unnest(data) %>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample, replace = TRUE))) %>% # smallest set here
+      unnest(data) %>%
+      mutate(modl = "ALL")
+  ) %>%
+  mutate(l_cveg_npp = dcveg / dnpp)%>%
+  dplyr::filter(!is.nan(dnpp), !is.nan(dcveg), !is.infinite(dnpp), !is.infinite(dcveg), l_cveg_npp>-1000000,l_cveg_npp<1000000) # the infinite filter does not work, no idea why
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
+
+# density scatter
+gdf_sampled %>%
+  ggplot(aes(x = dnpp, y = dcveg)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  # geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, "NPP/NPP")),
+    y = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+ggsave(here("fig/dnpp_dvegc_trendy_s1_bymodl_nostar.pdf"), width = 9, height = 13)
+ggsave(here("fig/dnpp_dvegc_trendy_s1_bymodl_nostar.png"), width = 9, height = 13)
+
+# we need to get some stat for the overall excel table
+df_quantiles <- gdf_sampled %>%
+  group_by(modl) %>%
+  summarise(
+    l_cveg_npp_50 = quantile(l_cveg_npp, probs = 0.5, na.rm = TRUE),
+    l_cveg_npp_iqr = IQR(l_cveg_npp, na.rm = TRUE)
+    ) 
+
+summary_table <- left_join(summary_table, df_quantiles, by = 'modl')
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_cveg_npp > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs,digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_cveg_npp, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  # geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Cveg:NPP]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) 
+
+ggsave(here("fig/hist_dcveg_dnpp_trendy_bymodl_nostar.png"), width = 9, height = 10.5)
+```
+
+#### Maps
+
+By model.
+```{r cveg_npp_bymodl_map, fig.height=12, out.width="100%"}
+plot_by_model <- function(use_modl, df){
+  
+  gdf_long <- df %>%
+    unnest(data) %>%
+    mutate(l_cveg_npp = dcveg / dnpp)%>%
+    dplyr::filter(!is.nan(l_cveg_npp), !is.infinite(l_cveg_npp)) |> 
+    filter(modl == use_modl)
+  
+  ggplot() +
+    geom_tile(
+      data = gdf_long,
+      aes(x = lon, y = lat, fill = l_cveg_npp),
+      show.legend = TRUE
+      ) +
+    geom_sf(
+      data = coast,
+      colour = 'black',
+      linewidth = 0.3
+    )  +
+    coord_sf(
+      ylim = c(-60, 85),
+      expand = FALSE
+    ) +
+    khroma::scale_fill_vik(
+      name = expression(paste(italic(L)[Cveg:NPP])),
+      limits = c(0, 2), 
+      oob = scales::squish,
+      midpoint = 1,
+      reverse = TRUE
+      ) +
+    labs(
+      title = display_titles[use_modl]
+    ) +
+    theme_void() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(hjust = 0.5, size = 10) 
+      )
+}
+
+plotlist <- purrr::map(
+  model_order,
+  ~ plot_by_model(., gdf)
+)
+
+legend_plot <- plotlist[[1]] +
+    theme(legend.position = "right")
+
+legend <- cowplot::get_legend(legend_plot)
+
+map_grid <- cowplot::plot_grid(
+  plotlist = plotlist,
+  ncol = 3
+)
+
+final_plot <- cowplot::plot_grid(
+  map_grid,
+  legend,
+  ncol = 2,
+  rel_widths = c(1, 0.08)  # adjust the legend width as needed
+)
+
+final_plot
+
+
+ggsave(
+  filename = here("fig/map_dcveg_dnpp_bymodel_nostar.png"),
+  height = 10, 
+  width = 10
+  )
+```
+
+All models pooled.
+```{r}
+gdf_long_1x1deg <- gdf %>%
+  select(-data) %>% 
+  unnest(data_1x1deg) %>%
+  mutate(l_cveg_npp = dcveg / dnpp)%>%
+  group_by(lon, lat) %>% 
+  summarise(
+    l_cveg_npp_median = median(l_cveg_npp, na.rm = TRUE),
+    l_cveg_npp_sd = sd(l_cveg_npp, na.rm = TRUE),
+    nmodels=n()
+  )
+  
+gg_map_agg <- ggplot() +
+  geom_tile(
+    data = gdf_long_1x1deg,
+    aes(x = lon, y = lat, fill = l_cveg_npp_median),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_vik(
+    name = expression(atop('Median of',italic(L)[Cveg:NPP])),
+    limits = c(0.2, 1.8),  
+    midpoint = 1,
+    oob = scales::squish,
+    reverse = TRUE
+    ) +
+  theme_void()
+
+gg_map_agg
+
+
+gg_map_aggSD <- ggplot() +
+  geom_tile(
+    data = gdf_long_1x1deg,
+    aes(x = lon, y = lat, fill = l_cveg_npp_sd),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_vik(
+    name = expression(atop('SD of',italic(L)[Cveg:NPP])),
+    limits = c(0, 2),  
+    oob = scales::squish,
+    midpoint = 1,
+    reverse = TRUE
+    ) +
+  theme_void()
+
+gg_map_aggSD
+```
+
+#### SI Fig. XXX
+
+```{r}
+cowplot::plot_grid(
+  gg3_cveg_npp,
+  gg_map_agg,
+  gg_map_aggSD,
+  ncol = 1,
+  labels = c("", "c", "d"),
+  rel_heights = c(1, 0.9,0.9)
+)
+
+ggsave(filename = here("fig/combined_cveg_npp_sd_nostar.png"), height = 8, width = 6)
+ggsave(filename = here("fig/combined_cveg_npp_sd_nostar.pdf"), height = 8, width = 6)
+``` 
+
+
+
 
 ### Croot vs Cveg
 
@@ -1125,7 +1605,7 @@ labels <- gdf_sampled %>%
   mutate(l_larger = l_croot_cveg > 1) %>%
   summarise(
     n_recs = n(),
-    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs,digits = 2),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs,digits = 3),
     perc_smaller = 1 - perc_larger
     )
 
@@ -1159,7 +1639,180 @@ gg3_l_croot_cveg <- cowplot::plot_grid(
   labels = c("a", "b")
 )
 
-ggsave(here("fig/croot_cveg_pooled.pdf"), plot = gg3_l_croot_cveg, width = 8, height = 4)
+# ggsave(here("fig/croot_cveg_pooled.pdf"), plot = gg3_l_croot_cveg, width = 8, height = 4)
+```
+
+#### sensitivity test using JULES only
+
+```{r cveg_star_croot_bymodl, fig.height=9, out.width="100%"}
+
+set.seed(1982)
+
+model_no <- which(gdf$modl=="JULES") 
+model_df <- gdf$data[[model_no]]
+robustbase::colMedians(as.matrix(model_df), na.rm = TRUE)
+sum(!model_df$landCoverFrac==0)
+
+gdf_sampled <- gdf %>%
+  unnest(data) %>%
+  filter(modl == "JULES")%>%
+  mutate(l_croot_star_cveg_star=dcroot_star/dcveg_star)%>%
+  dplyr::filter(
+    !is.nan(dcroot_star), !is.nan(dcveg_star), 
+    !is.infinite(dcroot_star), !is.infinite(dcveg_star),
+        !is.nan(dcroot), !is.nan(dcveg), 
+    !is.infinite(dcroot), !is.infinite(dcveg),
+    !is.nan(l_croot_cveg), !is.infinite(l_croot_cveg),
+    !is.nan(l_croot_star_cveg_star), !is.infinite(l_croot_star_cveg_star),
+    !is.nan(l_croot_cveg_star), !is.infinite(l_croot_cveg_star))
+
+# density scatter
+
+double_stara<-gdf_sampled %>%
+  ggplot(aes(x = dcveg_star, y = dcroot_star)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg])),
+    y = expression(paste(Delta, italic(C)[root^"*"], "/", italic(C)[root]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+one_stara<-gdf_sampled %>%
+  ggplot(aes(x = dcveg_star, y = dcroot)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg])),
+    y = expression(paste(Delta, italic(C)[root], "/", italic(C)[root]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+
+no_stara<-gdf_sampled %>%
+  ggplot(aes(x = dcveg, y = dcroot)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg])),
+    y = expression(paste(Delta, italic(C)[root], "/", italic(C)[root]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_croot_star_cveg_star > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+double_star<-gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_croot_star_cveg_star, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Croot^"*":Cveg^"*"]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_croot_cveg_star > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+one_star<-gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_croot_cveg_star, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Croot:Cveg^"*"]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_croot_cveg > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+no_star<-gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_croot_cveg, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Croot:Cveg]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+
+ library(cowplot)
+ plot_grid(double_star,double_stara, one_star,one_stara, no_star,no_stara, ncol = 2,labels = "AUTO")
+ggsave(filename = here('fig/sensitivity_test_star_croot.png'),width=7,height=9)
+
 ```
 
 #### By model
@@ -1181,7 +1834,7 @@ gdf_sampled <- gdf %>%
     !is.nan(dcroot), !is.nan(dcveg), 
     !is.infinite(dcroot), !is.infinite(dcveg),
     !is.nan(l_croot_cveg), !is.infinite(l_croot_cveg))
-
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 
 # density scatter
 gdf_sampled %>%
@@ -1198,7 +1851,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg])),
     y = expression(paste(Delta, italic(C)[root], "/", italic(C)[root]))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -1241,7 +1894,7 @@ gdf_sampled %>%
   labs(
     x = expression(paste(italic(L)[Croot:Cveg]))
   ) +
-  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) 
 
 ggsave(here("fig/hist_dcroot_dcveg_bymodl.pdf"), width = 9, height = 10.5)
 ggsave(here("fig/hist_dcroot_dcveg_bymodl.png"), width = 9, height = 10.5)
@@ -1281,7 +1934,7 @@ plot_by_model <- function(use_modl, df){
       reverse = TRUE
       ) +
     labs(
-      title = use_modl
+      title = display_titles[use_modl]
     ) +
     theme_void() +
     theme(
@@ -1291,7 +1944,7 @@ plot_by_model <- function(use_modl, df){
 }
 
 plotlist <- purrr::map(
-  as.list(unique(gdf$modl)),
+  model_order,
   ~ plot_by_model(., gdf)
 )
 
@@ -1335,8 +1988,13 @@ gdf_long_1x1deg <- gdf %>%
   group_by(lon, lat) %>% 
   summarise(
     l_croot_cveg_median = median(l_croot_cveg, na.rm = TRUE),
-    l_croot_cveg_sd = sd(l_croot_cveg, na.rm = TRUE)
-  )
+    l_croot_cveg_sd = sd(l_croot_cveg, na.rm = TRUE),
+    nmodels = sum(!is.na(l_croot_cveg)),.groups = "drop"
+  )%>%
+  mutate(across(
+    .cols = -c(lon, lat, nmodels), 
+    .fns = ~ ifelse(nmodels < 8, NA, .x)
+  ))
   
 gg_map_agg <- ggplot() +
   geom_tile(
@@ -1354,27 +2012,57 @@ gg_map_agg <- ggplot() +
     expand = FALSE
   ) +
   khroma::scale_fill_vik(
-    name = expression(paste(italic(L)[Croot:Cveg])),
+    name = expression(atop('Median of',italic(L)[Croot:Cveg])),
     limits = c(0.2, 1.8),  
     midpoint = 1,
     oob = scales::squish,
     reverse = TRUE
     ) +
   theme_void()
+
+
+gg_map_aggSD <- ggplot() +
+  geom_tile(
+    data = gdf_long_1x1deg,
+    aes(x = lon, y = lat, fill = l_croot_cveg_sd),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_grayC(
+    name = expression(atop('SD of',italic(L)[Croot:Cveg])),
+    limits = c(0, 2),  
+    oob = scales::squish
+
+
+    ) +
+  theme_void()
+
+gg_map_aggSD
+
 ```
 
-#### Publication Fig. 4
+#### Publication Fig. 5
 
 ```{r}
 cowplot::plot_grid(
   gg3_l_croot_cveg,
-  gg_map_agg, 
+  gg_map_agg,
+  gg_map_aggSD,
   ncol = 1,
-  labels = c("", "c"),
-  rel_heights = c(1, 0.9)
+  labels = c("", "c", "d"),
+  rel_heights = c(1, 0.9,0.9)
 )
 
-ggsave(filename = here("fig/combined_croot_cveg.pdf"), height = 5, width = 6)
+ggsave(filename = here("fig/fig5_combined_croot_cveg_sd.png"), height = 8, width = 6)
+ggsave(filename = here("fig/fig5_combined_croot_cveg_sd.pdf"), height = 8, width = 6)
 ``` 
 
 ### Cwood vs Cveg
@@ -1457,6 +2145,181 @@ gg3_l_cwood_cveg <- cowplot::plot_grid(
 ggsave(here("fig/cwood_cveg_pooled.pdf"), plot = gg3_l_cwood_cveg, width = 8, height = 4)
 ```
 
+
+#### sensitivity test using JULES only
+
+```{r cveg_star_croot_bymodl, fig.height=9, out.width="100%"}
+
+set.seed(1982)
+
+model_no <- which(gdf$modl=="JULES") 
+model_df <- gdf$data[[model_no]]
+robustbase::colMedians(as.matrix(model_df), na.rm = TRUE)
+sum(!model_df$landCoverFrac==0)
+
+gdf_sampled <- gdf %>%
+  unnest(data) %>%
+  filter(modl == "JULES")%>%
+  mutate(l_cwood_star_cveg_star=dcwood_star/dcveg_star,
+         l_cwood_cveg_star=dcwood/dcveg_star)%>%
+  dplyr::filter(
+    !is.nan(dcwood_star), !is.nan(dcveg_star), 
+    !is.infinite(dcwood_star), !is.infinite(dcveg_star),
+        !is.nan(dcwood), !is.nan(dcveg), 
+    !is.infinite(dcwood), !is.infinite(dcveg),
+    !is.nan(l_cwood_cveg), !is.infinite(l_cwood_cveg),
+    !is.nan(l_cwood_star_cveg_star), !is.infinite(l_cwood_star_cveg_star),
+    !is.nan(l_cwood_cveg_star), !is.infinite(l_cwood_cveg_star))
+
+# density scatter
+
+double_stara<-gdf_sampled %>%
+  ggplot(aes(x = dcveg_star, y = dcwood_star)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg])),
+    y = expression(paste(Delta, italic(C)[wood^"*"], "/", italic(C)[wood]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+one_stara<-gdf_sampled %>%
+  ggplot(aes(x = dcveg_star, y = dcwood)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg])),
+    y = expression(paste(Delta, italic(C)[wood], "/", italic(C)[wood]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+
+no_stara<-gdf_sampled %>%
+  ggplot(aes(x = dcveg, y = dcwood)) +
+  geom_hex(bins = 50, show.legend = FALSE) +
+  theme_classic() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  khroma::scale_fill_batlowW(trans = "log", reverse = TRUE) +
+  xlim(-1, 2) + 
+  ylim(-1, 2) +
+  labs(
+    x = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg])),
+    y = expression(paste(Delta, italic(C)[wood], "/", italic(C)[wood]))
+  ) +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(size = 12, hjust = 0)
+    )
+
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_cwood_star_cveg_star > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+double_star<-gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_cwood_star_cveg_star, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Cwood^"*":Cveg^"*"]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_cwood_cveg_star > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+one_star<-gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_cwood_cveg_star, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Cwood:Cveg^"*"]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+
+
+# Lables for Histogram  
+labels <- gdf_sampled %>%
+  mutate(l_larger = l_cwood_cveg > 1) %>%
+  group_by(modl) %>%
+  summarise(
+    n_recs = n(),
+    perc_larger = round(sum(l_larger, na.rm = TRUE)/n_recs, digits = 2),
+    perc_smaller = 1 - perc_larger
+    )
+
+# Histograms per model
+no_star<-gdf_sampled %>%
+  ggplot() +
+  geom_density(aes(x = l_cwood_cveg, y = after_stat(density)), fill = "grey70") +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  xlim(-1, 2.5) +
+  geom_text(data = labels, aes(x = 0.5, y = Inf, label = perc_smaller), vjust =  1.5) +
+  geom_text(data = labels, aes(x = 1.5, y = Inf, label = perc_larger), vjust = 1.5)+
+  labs(
+    x = expression(paste(italic(L)[Cwood:Cveg]))
+  ) +
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+library(cowplot)
+plot_grid(double_star,double_stara, one_star,one_stara, no_star,no_stara, ncol = 2,labels = "AUTO")
+ggsave(filename = here('fig/sensitivity_test_star_cWood.png'),width=7,height=9)
+
+```
+
+
 #### By model
 
 ```{r cveg_cwood_bymodl, fig.height=9, out.width="100%"}
@@ -1478,7 +2341,7 @@ gdf_sampled <- gdf %>%
     !is.infinite(dcwood), !is.infinite(dcveg),
     !is.nan(l_cwood_cveg), !is.infinite(l_cwood_cveg))
 
-
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 # density scatter
 gdf_sampled %>%
   ggplot(aes(x = dcveg, y = dcwood)) +
@@ -1494,7 +2357,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, italic(C)[veg], "/", italic(C)[veg])),
     y = expression(paste(Delta, italic(C)[wood], "/", italic(C)[wood]))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -1538,7 +2401,7 @@ gdf_sampled %>%
   labs(
     x = expression(paste(italic(L)[Cwood:Cveg]))
   ) +
-  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) 
 
 ggsave(here("fig/hist_dcwood_dcveg_bymodl.pdf"), width = 9, height = 10.5)
 ggsave(here("fig/hist_dcwood_dcveg_bymodl.png"), width = 9, height = 10.5)
@@ -1578,7 +2441,7 @@ plot_by_model <- function(use_modl, df){
       reverse = TRUE
       ) +
     labs(
-      title = use_modl
+      title = display_titles[use_modl]
     ) +
     theme_void() +
     theme(
@@ -1588,7 +2451,7 @@ plot_by_model <- function(use_modl, df){
 }
 
 plotlist <- purrr::map(
-  as.list(unique(gdf$modl)),
+  model_order,
   ~ plot_by_model(., gdf)
 )
 
@@ -1663,7 +2526,7 @@ gg_map_agg <- ggplot() +
   theme_void()
 ```
 
-#### Publication Fig. 4
+#### SI Fig. XXX
 
 ```{r}
 cowplot::plot_grid(
@@ -1674,6 +2537,7 @@ cowplot::plot_grid(
   rel_heights = c(1, 0.9)
 )
 
+ggsave(filename = here("fig/combined_cwood_cveg.png"), height = 5, width = 6)
 ggsave(filename = here("fig/combined_cwood_cveg.pdf"), height = 5, width = 6)
 ``` 
 
@@ -1773,7 +2637,7 @@ gdf_sampled <- gdf %>%
       mutate(modl = "ALL")
   ) %>%
   dplyr::filter(!is.nan(dcroot), !is.nan(dcveg_star), !is.infinite(dcroot), !is.infinite(dcveg_star))
-
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 # density scatter
 gdf_sampled %>%
   ggplot(aes(x = dcveg_star, y = dcroot)) +
@@ -1789,7 +2653,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg])),
     y = expression(paste(Delta, italic(C)[root], "/", italic(C)[root]))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -1833,11 +2697,13 @@ gdf_sampled %>%
   labs(
     x = expression(paste(italic(L)[Croot:Cveg^"*"]))
   ) +
-  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) 
 
 ggsave(here("fig/hist_dcroot_dcveg_star_bymodl.pdf"), width = 9, height = 10.5)
 ggsave(here("fig/hist_dcroot_dcveg_star_bymodl.png"), width = 9, height = 10.5)
 ```
+
+
 
 #### Maps
 
@@ -1873,7 +2739,7 @@ plot_by_model <- function(use_modl, df){
       reverse = TRUE
       ) +
     labs(
-      title = use_modl
+      title = display_titles[use_modl]
     ) +
     theme_void() +
     theme(
@@ -1883,7 +2749,7 @@ plot_by_model <- function(use_modl, df){
 }
 
 plotlist <- purrr::map(
-  as.list(unique(gdf$modl)),
+  model_order,
   ~ plot_by_model(., gdf)
 )
 
@@ -2051,6 +2917,7 @@ gdf_sampled <- gdf %>%
   dplyr::filter(
     !is.nan(dcleaf), !is.nan(dcveg_star), 
     !is.infinite(dcleaf), !is.infinite(dcveg_star))
+gdf_sampled$modl <- factor(gdf_sampled$modl, levels = model_order_with_all)
 
 # density scatter
 gdf_sampled %>%
@@ -2067,7 +2934,7 @@ gdf_sampled %>%
     x = expression(paste(Delta, italic(C)[veg^"*"], "/", italic(C)[veg])),
     y = expression(paste(Delta, italic(C)[leaf], "/", italic(C)[leaf]))
   ) +
-  facet_wrap(. ~ modl,  ncol = 3,  scales = "free") +
+  facet_wrap(. ~ modl,  ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
@@ -2111,7 +2978,7 @@ gdf_sampled %>%
   labs(
     x = expression(paste(italic(L)[Cleaf:Cveg^"*"]))
   ) +
-  facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
+  facet_wrap(. ~ modl, ncol = 3,  scales = "free",labeller = as_labeller(display_titles_with_all)) 
 
 ggsave(here("fig/hist_dcleaf_dcveg_star_bymodl.pdf"), width = 9, height = 10.5)
 ggsave(here("fig/hist_dcleaf_dcveg_star_bymodl.png"), width = 9, height = 10.5)
@@ -2151,7 +3018,7 @@ plot_by_model <- function(use_modl, df){
       reverse = TRUE
       ) +
     labs(
-      title = use_modl
+     title = display_titles[use_modl]
     ) +
     theme_void() +
     theme(
@@ -2161,7 +3028,7 @@ plot_by_model <- function(use_modl, df){
 }
 
 plotlist <- purrr::map(
-  as.list(unique(gdf$modl)),
+   model_order,
   ~ plot_by_model(., gdf)
 )
 
@@ -2305,43 +3172,225 @@ bymodel_map <- ggplot() +
   facet_wrap(. ~ modl, ncol = 3)
 
 ggsave(bymodel_map,filename = here("fig/rootshootration_trendyv11_bymodelv2.png"),height=10, width = 10)
+
 ```
 
-## Summary table (heatmap)
+###  cVeg versus cVeg_star
+
+
+```{r}
+
+
+
+havealook <- gdf %>% #Prepare the dataset, this is similar to the histogram above
+  unnest(data)  %>%
+  dplyr::filter(!is.nan(dcveg), !is.nan(dcveg_star), !is.infinite(dcveg), !is.infinite(dcveg_star))%>%
+  mutate(star_effect = dcveg/dcveg_star )%>%
+  filter(star_effect<100000, star_effect>-1000000) %>% # to remove NA and infinite
+  mutate(lon=ifelse(lon>180,lon-360,lon)) #some maps have longitude from 0 to 360, need to convert to -180 to 180
+
+bymodel_map1 <- ggplot() +
+  geom_raster(
+    data = havealook,
+    aes(x = lon, y = lat, fill = star_effect),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_vik(
+    name = "",
+    limits = c(0,2), 
+    midpoint = 1
+    ) +
+  theme_void() +
+  labs(
+    title =  expression(italic(R)["Cveg"] / italic(R)["Cveg*"])
+  )+
+  facet_wrap(. ~ modl, ncol = 3)
+
+ggsave(bymodel_map1,filename = here("fig/star_effect_trendyv11_bymodelv1.pdf"),height=10, width = 10)
+
+boxplot_stareffect <- ggplot(havealook, aes(y = star_effect, x = modl)) +
+  geom_boxplot() +
+  coord_flip() +
+  scale_y_continuous(limits = c(0.5, 1.4)) +
+  labs(
+    x = expression(italic(R)["Cveg"] / italic(R)["Cveg*"]),
+    y = NULL
+  )
+  
+ggsave(boxplot_stareffect,filename = here("fig/star_effect_boxPlottrendyv11_bymodelv1.png"),height=5, width = 6)
+
+bymodel_map <- ggplot() +
+  geom_raster(
+    data = havealook,
+    aes(x = lon, y = lat, fill = dcveg),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_vik(
+    name = "",
+    limits = c(-1,1), 
+    midpoint = 0
+    ) +
+  theme_void() +
+  labs(
+      title = expression(paste('[Croot/Cveg]')) 
+  ) +
+  facet_wrap(. ~ modl, ncol = 3)
+
+ggsave(bymodel_map,filename = here("fig/dcveg_trendyv11_bymodelv2.png"),height=10, width = 10)
+```
+
+###  change in autotrophic respiration
+
+#### Publication Fig. supplementary
+
+```{r}
+
+
+havealook <- gdf %>% #Prepare the dataset, this is similar to the histogram above
+  unnest(data)  %>%
+  mutate(Ra_final = gpp_final-npp_final ,
+         Ra_init=gpp_init-npp_init,
+         dRa = (Ra_final-Ra_init)/Ra_init)%>%
+  dplyr::filter(!is.nan(dRa), !is.nan(dRa), !is.infinite(dRa), !is.infinite(dRa))%>%
+   # to remove NA and infinite
+  mutate(lon=ifelse(lon>180,lon-360,lon)) #some maps have longitude from 0 to 360, need to convert to -180 to 180
+
+
+bymodel_map1 <- ggplot() +
+  geom_raster(
+    data = havealook,
+    aes(x = lon, y = lat, fill = dRa),
+    show.legend = TRUE
+    ) +
+  geom_sf(
+    data = coast,
+    colour = 'black',
+    linewidth = 0.3
+  )  +
+  coord_sf(
+    ylim = c(-60, 85),
+    expand = FALSE
+  ) +
+  khroma::scale_fill_vik(
+    name = "",
+    limits = c(-0.5,0.5), 
+    midpoint = 0
+    ) +
+  theme_void() +
+  labs(
+    title =  expression(italic(R)["Ra"] )
+  )+
+  facet_wrap(. ~ modl, ncol = 3)
+
+
+ggsave(bymodel_map1,filename = here("fig/RRa_trendyv11_bymodelv1.png"),height=10, width = 10)
+
+```
+
+## Summary table (Publication Fig. 2)
 
 ```{r summary_table, fig.height=9, out.width="80%"}
-df <- summary_table |> 
-  filter(modl != "ALL")
 
-# Pivot to long format
-column_order <- c("l_npp_gpp_50", "l_cveg_star_npp_50", "l_croot_cveg_50", "l_cwood_cveg_50", "l_cleaf_cveg_star_50")
+#write.csv(summary_table,file = here("data/summary_table_figure2.csv"))
+
+summary_table <- read.csv(here("data/summary_table_figure2.csv"))
+cn_id <- tibble(
+  cn_coupled = c(TRUE, FALSE),
+  cn_label = c("C-N", "    C-only")
+)
+
+veg_demo_id<- tibble(
+  veg_demo = c(TRUE, FALSE),
+  cn_label = c("Veg. Demo.", "no Veg. Demo.")
+)
+
+model_order <- c(
+  "VISIT-NIES", "CLASSIC", "IBIS", "LPJ", "VISIT", 
+  "ISBA-CTRIP", "ORCHIDEE", "CLM5.0", "DLEM", "ISAM", 
+  "JSBACH", "JULES", "LPX-Bern", "SDGVM", "CABLE-POP", "LPJ-GUESS"
+)
+
+
+df <- summary_table %>% 
+  filter(modl != "ALL") %>%
+  mutate(modl = factor(modl, levels = rev(model_order)))
+
+column_order <- c(
+  "l_npp_gpp_50", "l_cveg_star_npp_50", "l_croot_cveg_50",
+  "l_cwood_cveg_50", "l_cleaf_cveg_star_50", "cn_coupled", "veg_demo"
+)
 
 column_labels <- c(
   expression(paste(italic(L)[NPP:GPP])),
   expression(paste(italic(L)[Cveg^"*":NPP])),
   expression(paste(italic(L)[Croot:Cveg])),
   expression(paste(italic(L)[Cwood:Cveg])),
-  expression(paste(italic(L)[Cleaf:Cveg^"*"]))
+  expression(paste(italic(L)[Cleaf:Cveg^"*"])),
+  "C-N",
+  "Veg. Demo."
+)
+
+df_long <- df %>%
+  select(modl, all_of(column_order[1:5])) %>%
+  pivot_longer(-modl, names_to = "link", values_to = "value") %>%
+  mutate(
+    link = factor(link, levels = column_order),
+    row_type = "value",
+    label = sprintf("%.2f", value)
   )
 
-# By model
-df_long <- df %>%
-  select(modl, any_of(column_order)) |> 
-  pivot_longer(-modl, names_to = "link", values_to = "value") |> 
-  mutate(link = factor(link, levels = column_order))
+df_notes <- df %>%
+  select(modl, cn_coupled, veg_demo) %>%
+  pivot_longer(-modl, names_to = "link", values_to = "note") %>%
+  mutate(
+    link = factor(link, levels = column_order),
+    row_type = "note",
+    value = NA_real_,
+    label = ifelse(note, "Yes", "No")
+  )
 
-gg1 <- ggplot(df_long, aes(x = link, y = modl, fill = value)) +
+
+df_plot <- bind_rows(df_long, df_notes)
+
+gg1 <- ggplot(df_plot, aes(x = link, y = modl, fill = value)) +
   geom_tile(color = "white", show.legend = FALSE) +
-  geom_text(aes(label = round(value, 2)), color = "grey30") +
-  khroma::scale_fill_vik(
+  geom_text(
+    data = filter(df_plot, row_type == "value"),
+    aes(label = label),
+    color = "black"
+  ) +
+  geom_text(
+    data = filter(df_plot, row_type == "note"),
+    aes(label = label),
+    color = "black"
+  ) +
+   khroma::scale_fill_vik(
     name = expression(paste(italic(L))),
-    limits = c(0.2, 1.8),  
+    limits = c(0.2, 1.8),
     midpoint = 1,
     reverse = TRUE,
-    na.value = "grey70"
-    ) +
+    na.value = "white"
+  ) +
   scale_x_discrete(labels = column_labels, position = "top") +
-  scale_y_discrete(limits = rev(unique(df$modl))) +
+  scale_y_discrete() + 
   coord_fixed(ratio = 0.5) +
   theme_minimal() +
   theme(
@@ -2349,40 +3398,39 @@ gg1 <- ggplot(df_long, aes(x = link, y = modl, fill = value)) +
     panel.grid = element_blank(),
     legend.position = "bottom"
   ) +
-  labs(
-    fill = "Value",
-    y = "",
-    x = ""
-    )
+  labs(fill = "Value", y = "", x = "")
 
 # C-N vs C-only
-cn_id <- tibble(
-  cn_coupled = c(TRUE, FALSE),
-  cn_label = c("C-N", "    C-only")
-)
 
 df_long <- df %>%
   group_by(cn_coupled) |> 
-  summarise(across(all_of(column_order), ~ median(.x, na.rm = TRUE))) |> 
-  pivot_longer(-cn_coupled, names_to = "link", values_to = "value") |> 
-  mutate(link = factor(link, levels = column_order)) |> 
-  left_join(
-    cn_id,
-    by = "cn_coupled"
-  )
+  summarise(across(all_of(column_order[1:5]), ~ median(.x, na.rm = TRUE))) |>
+  pivot_longer(-cn_coupled, names_to = "link", values_to = "value")
+
+df_long <- df_long |> 
+  bind_rows(
+    expand_grid(
+      cn_coupled = unique(df_long$cn_coupled), 
+      link = c("Extra1", "Extra2"), 
+      value = as.numeric(NA)
+    )
+  ) |> 
+  mutate(link = factor(link, levels = c(column_order[1:5], "Extra1", "Extra2"))) |> 
+  left_join(cn_id, by = "cn_coupled")
+
 
 gg2 <- ggplot(df_long, aes(x = link, y = cn_label, fill = value)) +
   geom_tile(color = "white", show.legend = FALSE) +
-  geom_text(aes(label = round(value, 2)), color = "grey30") +
+  geom_text(aes(label = round(value, 2)), color = "black") +
   khroma::scale_fill_vik(
     name = expression(paste(italic(L))),
     limits = c(0.2, 1.8),  
     oob = scales::squish,
     midpoint = 1,
     reverse = TRUE,
-    na.value = "grey70"
-    ) +
-  scale_x_discrete(labels = column_labels, position = "top") +
+    na.value = "white" # This colors the new NA tiles grey
+  ) +
+  scale_x_discrete(labels = c(column_labels[1:5], "New Col 1", "New Col 2"), position = "top") +
   coord_fixed(ratio = 0.5) +
   theme_minimal() +
   theme(
@@ -2390,41 +3438,38 @@ gg2 <- ggplot(df_long, aes(x = link, y = cn_label, fill = value)) +
     panel.grid = element_blank(),
     legend.position = "bottom"
   ) +
-  labs(
-    fill = "Value",
-    y = "",
-    x = ""
-    )
-
+  labs(fill = "Value", y = "", x = "")
 
 # veg demo or not
-veg_demo_id <- tibble(
-  veg_demo = c(TRUE, FALSE),
-  cn_label = c("Veg. demo.", "no Veg. demo.")
-)
-
 df_long <- df %>%
   group_by(veg_demo) |> 
-  summarise(across(all_of(column_order), ~ median(.x, na.rm = TRUE))) |> 
-  pivot_longer(-veg_demo, names_to = "link", values_to = "value") |> 
-  mutate(link = factor(link, levels = column_order)) |> 
-  left_join(
-    veg_demo_id,
-    by = "veg_demo"
-  )
+  summarise(across(all_of(column_order[1:5]), ~ median(.x, na.rm = TRUE))) |> 
+  pivot_longer(-veg_demo, names_to = "link", values_to = "value")
+
+new_cols <- crossing(
+  veg_demo = unique(df_long$veg_demo), 
+  link = c("Extra_1", "Extra_2")
+) |> 
+  mutate(value = as.numeric(NA))
+
+df_long <- df_long |> 
+  bind_rows(new_cols) |> 
+  mutate(link = factor(link, levels = c(column_order, "Extra_1", "Extra_2"))) |> 
+  left_join(veg_demo_id, by = "veg_demo")
 
 gg2veg <- ggplot(df_long, aes(x = link, y = cn_label, fill = value)) +
   geom_tile(color = "white", show.legend = FALSE) +
-  geom_text(aes(label = round(value, 2)), color = "grey30") +
+  geom_text(aes(label = round(value, 2)), color = "black") +
   khroma::scale_fill_vik(
     name = expression(paste(italic(L))),
     limits = c(0.2, 1.8),  
     oob = scales::squish,
     midpoint = 1,
     reverse = TRUE,
-    na.value = "grey70"
-    ) +
-  scale_x_discrete(labels = column_labels, position = "top") +
+    na.value = "white"
+  ) +
+  # Add labels for the two new columns here
+  scale_x_discrete(labels = c(column_labels, "New 1", "New 2"), position = "top") +
   coord_fixed(ratio = 0.5) +
   theme_minimal() +
   theme(
@@ -2432,21 +3477,27 @@ gg2veg <- ggplot(df_long, aes(x = link, y = cn_label, fill = value)) +
     panel.grid = element_blank(),
     legend.position = "bottom"
   ) +
-  labs(
-    fill = "Value",
-    y = "",
-    x = ""
-    )
+  labs(fill = "Value", y = "", x = "")
 
 # aggregated across all models
 df_long <- df %>%
-  summarise(across(all_of(column_order), ~ median(.x, na.rm = TRUE))) |> 
-  pivot_longer(cols = everything(), names_to = "link", values_to = "value") |> 
-  mutate(link = factor(link, levels = column_order)) |> 
-  mutate(label = "     ALL")
+  summarise(across(all_of(column_order[1:5]), ~ median(.x, na.rm = TRUE))) |> 
+  pivot_longer(cols = everything(), names_to = "link", values_to = "value")
 
+
+new_cols <- tibble(
+  link = c("Extra_1", "Extra_2"), 
+  value = as.numeric(NA)
+)
+
+df_long <- df_long |> 
+  bind_rows(new_cols) |> 
+  mutate(link = factor(link, levels = c(column_order, "Extra_1", "Extra_2"))) |> 
+  mutate(label = "ALL")
+
+# 3. Plotting (Your existing ggplot code remains the same)
 gg3 <- ggplot(df_long, aes(x = link, y = label, fill = value)) +
-  geom_tile(color = "white", show.legend = FALSE) +
+  geom_tile(color = "white", show.legend = TRUE) +
   geom_text(aes(label = round(value, 2)), color = "grey30") +
   khroma::scale_fill_vik(
     name = expression(paste(italic(L))),
@@ -2454,9 +3505,37 @@ gg3 <- ggplot(df_long, aes(x = link, y = label, fill = value)) +
     oob = scales::squish,
     midpoint = 1,
     reverse = TRUE,
-    na.value = "grey70"
-    ) +
-  scale_x_discrete(labels = column_labels, position = "top") +
+    na.value = "white" # This will color your new NA columns grey
+  ) +
+  scale_x_discrete(labels = c(column_labels, "New Col 1", "New Col 2"), position = "top") +
+  coord_fixed(ratio = 0.5) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "none"
+  ) +
+  labs(fill = "Value", y = "", x = "")
+
+df_long_gg4 <- df_long
+
+df_long_gg4$label <- "Observation"
+df_long_gg4$value <- c(NA, 0.63, 1.22, 1.09, NA, NA, NA)
+# link column remains unchanged
+
+# Plot gg4 (same structure as gg3)
+gg4 <- ggplot(df_long_gg4, aes(x = link, y = label, fill = value)) +
+  geom_tile(color = "white", show.legend = TRUE) +
+  geom_text(aes(label = round(value, 2)), color = "grey30") +
+  khroma::scale_fill_vik(
+    name = expression(paste(italic(L))),
+    limits = c(0.2, 1.8),  
+    oob = scales::squish,
+    midpoint = 1,
+    reverse = TRUE,
+    na.value = "white"
+  ) +
+  scale_x_discrete(labels = c(column_labels, "New Col 1", "New Col 2"), position = "top") +
   coord_fixed(ratio = 0.5) +
   theme_minimal() +
   theme(
@@ -2464,35 +3543,8 @@ gg3 <- ggplot(df_long, aes(x = link, y = label, fill = value)) +
     panel.grid = element_blank(),
     legend.position = "bottom"
   ) +
-  labs(
-    fill = "Value",
-    y = "",
-    x = ""
-    )
+  labs(fill = "Value", y = "", x = "")
 
-# Yes or no label
-df_longyesno <- df[, c(1, 2,3)] %>%
-  pivot_longer(-modl, names_to = "link", values_to = "value") |> 
-  mutate(link = factor(link))
-
-gg_yesno <- ggplot(df_longyesno, aes(x = link, y = modl, fill = value)) +
-  geom_tile(color = "white", show.legend = FALSE) +
-  geom_text(aes(label = value), color = "grey30") +
-  scale_x_discrete(labels = c('C-N','Veg. Demo.'), position = "top") +
-  scale_y_discrete(limits = rev(unique(df$modl))) +
-  scale_fill_manual(values = c("white", "lightgrey")) +
-  coord_fixed(ratio = 0.5) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5),
-    panel.grid = element_blank(),
-    legend.position = "bottom"
-  ) +
-  labs(
-    fill = "Value",
-    y = "",
-    x = ""
-    )
 
 # get legend
 # Dummy plot just to extract the legend
@@ -2531,22 +3583,18 @@ legend <- cowplot::get_legend(legend_plot)
 #   labels = letters[1:3]
 # )
 
-heatmaps <- cowplot::plot_grid(
-  gg1,
-  gg2, 
-  gg2veg,
-  gg3,
-  legend,
+# install.packages("egg")
+library(egg)
+heatmaps <- egg::ggarrange(
+  gg1, gg2, gg2veg, gg3, gg4,
   ncol = 1,
-  align = "hv",    # vertical alignment
-  axis = "lr",    # align left and right margins (y-axis)
-  rel_heights = c(1, 0.189, 0.189, 0.135, 0.15),
-  labels = letters[1:4]
+  heights = c(1, 0.189, 0.189,0.189, 0.25), # Adjust for 4 plots
+  labels = c("a", "b", "c", "d","e"),
+  debug = FALSE # Set to TRUE to see the alignment boxes
 )
 
-heatmaps
-
-ggsave(here("fig/summary_tablev20250825.pdf"), width = 7, height = 9)
+ggsave(plot = heatmaps,here("fig/fig2_summary_tablev2026.png"), width = 11.82, height = 9.73)
+ggsave(plot = heatmaps,here("fig/fig2_summary_tablev2026.pdf"), width = 11.82, height = 9.73)
 ```
 
 ## SI data table
@@ -2782,3 +3830,222 @@ Quantile_table <- supplementary %>%
 
 write.csv(Quantile_table,file = here("data/supplementary_data.csv"))
 ```
+
+## simple statistic requested by reviewer
+
+```{r}
+Quantile_result <- gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(modl %in% c('CLASSIC','IBIS','LPJ', "VISIT" ,  "VISIT-NIES", "ISBA-CTRIP"))%>%
+      mutate(modl = "C only models") %>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(!modl %in% c('CLASSIC','IBIS','LPJ', "VISIT" ,  "VISIT-NIES", "ISBA-CTRIP"))%>%
+      mutate(modl = "CN coupled models")
+  ) 
+
+library(dplyr)
+library(effectsize)
+
+
+run_stats <- function(data, value_col, lower = -100, upper = 100) {
+
+  data_clean <- data %>%
+    filter(
+      !is.na(.data[[value_col]]),
+      !is.nan(.data[[value_col]]),
+      !is.infinite(.data[[value_col]]),
+      .data[[value_col]] > lower,
+      .data[[value_col]] < upper
+    ) %>%
+    mutate(modl = factor(modl, levels = c("C only models", "CN coupled models")))
+
+  group1 <- data_clean %>% filter(modl == "C only models") %>% pull(.data[[value_col]])
+  group2 <- data_clean %>% filter(modl == "CN coupled models") %>% pull(.data[[value_col]])
+
+  t_res <- t.test(group1, group2)
+
+  d_res <- effectsize::cohens_d(
+    reformulate("modl", response = value_col),
+    data = data_clean,
+    ci = 0.95
+  )
+
+  data.frame(
+    Variable = value_col,
+    N_C_only_models = length(group1),
+    N_CN_coupled_models = length(group2),
+    Mean_C_only_models = mean(group1),
+    Mean_CN_coupled_models = mean(group2),
+    Median_C_only_models = median(group1),
+    Median_CN_coupled_models = median(group2),
+    T_statistic = unname(t_res$statistic),
+    Degrees_of_freedom = unname(t_res$parameter),
+    P_value = t_res$p.value,
+    Mean_difference_CI_lower = t_res$conf.int[1],
+    Mean_difference_CI_upper = t_res$conf.int[2],
+    Cohens_d = d_res$Cohens_d,
+    Cohens_d_CI_lower = d_res$CI_low,
+    Cohens_d_CI_upper = d_res$CI_high
+  )
+}
+
+df <- Quantile_result %>%
+  filter(
+    !is.nan(dnpp), !is.nan(dcveg_star),
+    !is.infinite(dnpp), !is.infinite(dcveg_star),
+    l_cveg_star_npp < 100000, l_cveg_star_npp > -1000000
+  ) %>%
+  select(modl, l_cveg_star_npp)
+
+df2 <- Quantile_result %>%
+  filter(
+    !is.nan(l_npp_gpp),
+    !is.infinite(l_npp_gpp)
+  ) %>%
+  select(modl, l_npp_gpp)
+
+df3 <- Quantile_result %>%
+  filter(
+    !is.nan(l_croot_cveg),
+    !is.infinite(l_croot_cveg)
+  ) %>%
+  select(modl, l_croot_cveg)
+
+res1 <- run_stats(df,  "l_cveg_star_npp", lower = -100, upper = 100)
+res2 <- run_stats(df2, "l_npp_gpp",       lower = -100, upper = 100)
+res3 <- run_stats(df3, "l_croot_cveg",    lower = -100, upper = 100)
+
+final_table <- bind_rows(res1, res2, res3)
+
+final_table_round <- final_table %>%
+  mutate(across(where(is.numeric), ~ round(., 4)))
+
+library(openxlsx)
+final_table_t <- as.data.frame(t(final_table_round))
+colnames(final_table_t) <- final_table_round$Variable
+write.xlsx(
+  final_table_t,
+  file = "manuscript_statistics_cleaned.xlsx",
+  rowNames = TRUE
+)
+
+
+
+Quantile_result <- gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
+      mutate(modl = "Veg Demo")%>%
+  bind_rows(
+    .,
+    gdf %>%
+      mutate(n = purrr::map_int(data, ~nrow(.))) %>%
+      mutate(data = purrr::map(data, ~slice_sample(., n = nsample,replace=T))) %>% # smallest set here
+      unnest(data) %>%
+      filter(!modl %in% c("CABLE-POP", "LPJ-GUESS", "SDGVM"))%>%
+      mutate(modl = "not Veg Demo"))
+
+
+
+library(dplyr)
+library(effectsize)
+library(openxlsx)
+
+run_stats <- function(data, value_col, lower = -100, upper = 100) {
+
+  data_clean <- data %>%
+    filter(
+      !is.na(.data[[value_col]]),
+      !is.nan(.data[[value_col]]),
+      !is.infinite(.data[[value_col]]),
+      .data[[value_col]] > lower,
+      .data[[value_col]] < upper
+    ) %>%
+    mutate(modl = factor(modl, levels = c("Veg Demo", "not Veg Demo")))
+
+  group1 <- data_clean %>% filter(modl == "Veg Demo") %>% pull(.data[[value_col]])
+  group2 <- data_clean %>% filter(modl == "not Veg Demo") %>% pull(.data[[value_col]])
+
+  t_res <- t.test(group1, group2)
+
+  d_res <- effectsize::cohens_d(
+    reformulate("modl", response = value_col),
+    data = data_clean,
+    ci = 0.95
+  )
+
+  data.frame(
+    Variable = value_col,
+    N_Veg_Demo = length(group1),
+    N_not_Veg_Demo = length(group2),
+    Mean_Veg_Demo = mean(group1),
+    Mean_not_Veg_Demo = mean(group2),
+    Median_Veg_Demo = median(group1),
+    Median_not_Veg_Demo = median(group2),
+    T_statistic = unname(t_res$statistic),
+    Degrees_of_freedom = unname(t_res$parameter),
+    P_value = t_res$p.value,
+    Mean_difference_CI_lower = t_res$conf.int[1],
+    Mean_difference_CI_upper = t_res$conf.int[2],
+    Cohens_d = d_res$Cohens_d,
+    Cohens_d_CI_lower = d_res$CI_low,
+    Cohens_d_CI_upper = d_res$CI_high
+  )
+}
+
+df <- Quantile_result %>%
+  filter(
+    !is.nan(dnpp), !is.nan(dcveg_star),
+    !is.infinite(dnpp), !is.infinite(dcveg_star),
+    l_cveg_star_npp < 100000,
+    l_cveg_star_npp > -1000000
+  ) %>%
+  select(modl, l_cveg_star_npp)
+
+df2 <- Quantile_result %>%
+  filter(
+    !is.nan(l_npp_gpp),
+    !is.infinite(l_npp_gpp)
+  ) %>%
+  select(modl, l_npp_gpp)
+
+df3 <- Quantile_result %>%
+  filter(
+    !is.nan(l_croot_cveg),
+    !is.infinite(l_croot_cveg)
+  ) %>%
+  select(modl, l_croot_cveg)
+
+res1 <- run_stats(df,  "l_cveg_star_npp", lower = -100, upper = 100)
+res2 <- run_stats(df2, "l_npp_gpp",       lower = -100, upper = 100)
+res3 <- run_stats(df3, "l_croot_cveg",    lower = -100, upper = 100)
+
+final_table <- bind_rows(res1, res2, res3)
+
+final_table_round <- final_table %>%
+  mutate(across(where(is.numeric), ~ round(., 4)))
+
+print(final_table_round)
+
+# Transpose for manuscript-friendly layout
+final_table_t <- as.data.frame(t(final_table_round))
+colnames(final_table_t) <- final_table_round$Variable
+
+# Save to Excel
+write.xlsx(
+  final_table_t,
+  file = "manuscript_statistics_veg_demo.xlsx",
+  rowNames = TRUE
+)
+
+```
+
+
