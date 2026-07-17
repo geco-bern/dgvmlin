@@ -1,11 +1,11 @@
 # Walker-beta to linearity term analysis ---------------
-# This script runs a quantitative comparison of individual relationships 
+# This script runs a quantitative comparison of individual relationships
 # from a compilation of studies from the literature (Walker et al. 2021).
 
 ## Load stuff -------------------
 library(dplyr)
-library(lme4) 
-library(lmerTest) 
+library(lme4)
+library(lmerTest)
 library(ggplot2)
 library(viridis)
 library(here)
@@ -13,14 +13,14 @@ library(readr)
 
 # Manually created based on Table 2 in Walker et al. 2021 (doi:10.1111/nph.16866)
 table2_walker <- readr::read_csv(here::here("data-raw/table2_walker2021.csv")) |>
-  rename(X95CI_beta = `95CI_beta`) |> 
+  rename(X95CI_beta = `95CI_beta`) |>
   mutate(SD_beta = X95CI_beta / 1.96)
 
 # View(table2_walker)
 
 # Generic function for bootstrapping combinations
 sample_walker <- function(id, df_x, df_y) {
-  
+
   # independently sample x and y
   i <- sample(dim(df_x)[1], 1)
   j <- sample(dim(df_y)[1], 1)
@@ -39,7 +39,7 @@ sample_walker <- function(id, df_x, df_y) {
 }
 
 ## Cveg-NPP ---------------------------------------------------------------------
-# Select data: only from experimentally (controlled) elevated CO2 observations for 
+# Select data: only from experimentally (controlled) elevated CO2 observations for
 # variable that can be interpreted as NPP
 df_npp <- table2_walker %>%
   filter(interpret_var %in% c("NPP"), co2 == "eCO2") %>%
@@ -174,7 +174,7 @@ df_croot <- table2_walker %>%
   filter(interpret_var %in% c(
     "Croot",
     "NPProot"
-  ), 
+  ),
   co2 == "eCO2") %>%
   mutate(
     SD_beta = ifelse(
@@ -267,7 +267,7 @@ gg_croot_cveg <- cowplot::plot_grid(
 ## Cwood:Cveg ---------------------------------------------------------------------
 df_cveg <- table2_walker %>%
   filter(
-    interpret_var == "Cveg", 
+    interpret_var == "Cveg",
     co2 == "eCO2"
   ) %>%
   mutate(
@@ -387,14 +387,16 @@ gg_obs <- cowplot::plot_grid(
 
 # gg_obs
 
+## Publication Fig. 4
+
 ggsave(
-  here("fig/l_obs.pdf"),
+  here("fig/fig4_l_obs.pdf"),
   plot = gg_obs,
   width = 6,
   height = 8
 )
 ggsave(
-  here("fig/l_obs.jpg"),
+  here("fig/fig4_l_obs.jpg"),
   plot = gg_obs,
   width = 6,
   height = 8

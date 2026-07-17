@@ -408,7 +408,7 @@ gdf <- gdf %>%
     )
 ```
 
-## Regrid
+## Regrid -- ENTER HERE FOR REPRODUCING FIGURES
 
 Regrid all model outputs to a common 1x1 deg grid. Note: this takes quite long, therefore reading from file if available.
 ```{r compile gdf}
@@ -909,7 +909,8 @@ cowplot::plot_grid(
   rel_heights = c(1, 0.9,0.9)
 )
 
-ggsave(filename = here("fig/combined_npp_gpp_sd.jpg"), height = 8, width = 6)
+ggsave(filename = here("fig/fig1_combined_npp_gpp_sd.png"), height = 8, width = 6)
+ggsave(filename = here("fig/fig1_combined_npp_gpp_sd.pdf"), height = 8, width = 6)
 ``` 
 
 ### Cveg* vs NPP 
@@ -1232,7 +1233,8 @@ cowplot::plot_grid(
   rel_heights = c(1, 0.9,0.9)
 )
 
-ggsave(filename = here("fig/combined_cvegstar_npp_sd.jpg"), height = 8, width = 6)
+ggsave(filename = here("fig/fig3_combined_cvegstar_npp_sd.png"), height = 8, width = 6)
+ggsave(filename = here("fig/fig3_combined_cvegstar_npp_sd.pdf"), height = 8, width = 6)
 ``` 
 
 
@@ -1541,7 +1543,7 @@ gg_map_aggSD <- ggplot() +
 gg_map_aggSD
 ```
 
-#### Publication Fig. 3
+#### SI Fig. XXX
 
 ```{r}
 cowplot::plot_grid(
@@ -1553,6 +1555,7 @@ cowplot::plot_grid(
   rel_heights = c(1, 0.9,0.9)
 )
 
+ggsave(filename = here("fig/combined_cveg_npp_sd_nostar.png"), height = 8, width = 6)
 ggsave(filename = here("fig/combined_cveg_npp_sd_nostar.pdf"), height = 8, width = 6)
 ``` 
 
@@ -1808,7 +1811,7 @@ no_star<-gdf_sampled %>%
 
  library(cowplot)
  plot_grid(double_star,double_stara, one_star,one_stara, no_star,no_stara, ncol = 2,labels = "AUTO")
-ggsave(filename = here('fig/sensitivity_test_star_croot.jpg'),width=7,height=9)
+ggsave(filename = here('fig/sensitivity_test_star_croot.png'),width=7,height=9)
 
 ```
 
@@ -2046,7 +2049,7 @@ gg_map_aggSD
 
 ```
 
-#### Publication Fig. 4
+#### Publication Fig. 5
 
 ```{r}
 cowplot::plot_grid(
@@ -2058,7 +2061,8 @@ cowplot::plot_grid(
   rel_heights = c(1, 0.9,0.9)
 )
 
-ggsave(filename = here("fig/combined_croot_cveg_sd.jpg"), height = 8, width = 6)
+ggsave(filename = here("fig/fig5_combined_croot_cveg_sd.png"), height = 8, width = 6)
+ggsave(filename = here("fig/fig5_combined_croot_cveg_sd.pdf"), height = 8, width = 6)
 ``` 
 
 ### Cwood vs Cveg
@@ -2311,7 +2315,7 @@ no_star<-gdf_sampled %>%
   facet_wrap(. ~ modl, ncol = 3,  scales = "free") 
 library(cowplot)
 plot_grid(double_star,double_stara, one_star,one_stara, no_star,no_stara, ncol = 2,labels = "AUTO")
-ggsave(filename = here('fig/sensitivity_test_star_cWood.jpg'),width=7,height=9)
+ggsave(filename = here('fig/sensitivity_test_star_cWood.png'),width=7,height=9)
 
 ```
 
@@ -2522,7 +2526,7 @@ gg_map_agg <- ggplot() +
   theme_void()
 ```
 
-#### Publication Fig. 4
+#### SI Fig. XXX
 
 ```{r}
 cowplot::plot_grid(
@@ -2533,6 +2537,7 @@ cowplot::plot_grid(
   rel_heights = c(1, 0.9)
 )
 
+ggsave(filename = here("fig/combined_cwood_cveg.png"), height = 5, width = 6)
 ggsave(filename = here("fig/combined_cwood_cveg.pdf"), height = 5, width = 6)
 ``` 
 
@@ -3221,7 +3226,7 @@ boxplot_stareffect <- ggplot(havealook, aes(y = star_effect, x = modl)) +
     y = NULL
   )
   
-ggsave(boxplot_stareffect,filename = here("fig/star_effect_boxPlottrendyv11_bymodelv1.jpg"),height=5, width = 6)
+ggsave(boxplot_stareffect,filename = here("fig/star_effect_boxPlottrendyv11_bymodelv1.png"),height=5, width = 6)
 
 bymodel_map <- ggplot() +
   geom_raster(
@@ -3296,20 +3301,16 @@ bymodel_map1 <- ggplot() +
   facet_wrap(. ~ modl, ncol = 3)
 
 
-ggsave(bymodel_map1,filename = here("fig/RRa_trendyv11_bymodelv1.jpg"),height=10, width = 10)
+ggsave(bymodel_map1,filename = here("fig/RRa_trendyv11_bymodelv1.png"),height=10, width = 10)
 
 ```
 
-## Summary table
+## Summary table (Publication Fig. 2)
 
 ```{r summary_table, fig.height=9, out.width="80%"}
 
 #write.csv(summary_table,file = here("data/summary_table_figure2.csv"))
 
-     #                         new version                         ~~~
-     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     
-     
 summary_table <- read.csv(here("data/summary_table_figure2.csv"))
 cn_id <- tibble(
   cn_coupled = c(TRUE, FALSE),
@@ -3398,9 +3399,6 @@ gg1 <- ggplot(df_plot, aes(x = link, y = modl, fill = value)) +
     legend.position = "bottom"
   ) +
   labs(fill = "Value", y = "", x = "")
-
-
-
 
 # C-N vs C-only
 
@@ -3595,7 +3593,8 @@ heatmaps <- egg::ggarrange(
   debug = FALSE # Set to TRUE to see the alignment boxes
 )
 
-ggsave(plot = heatmaps,here("fig/summary_tablev2026.pdf"), width = 11.82, height = 9.73)
+ggsave(plot = heatmaps,here("fig/fig2_summary_tablev2026.png"), width = 11.82, height = 9.73)
+ggsave(plot = heatmaps,here("fig/fig2_summary_tablev2026.pdf"), width = 11.82, height = 9.73)
 ```
 
 ## SI data table
